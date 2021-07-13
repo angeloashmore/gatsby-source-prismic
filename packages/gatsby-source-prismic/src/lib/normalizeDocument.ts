@@ -1,4 +1,4 @@
-import * as prismic from 'ts-prismic'
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import { pipe } from 'fp-ts/function'
 
@@ -8,11 +8,13 @@ import { normalizeDocumentSubtree } from './normalizeDocumentSubtree'
 /**
  * Type guard to verify that the given value is a valid Prismic document.
  */
-const documentRefinement = (value: unknown): value is prismic.Document =>
+const documentRefinement = (
+  value: unknown,
+): value is prismicT.PrismicDocument =>
   typeof value === 'object' &&
   value !== null &&
   !Array.isArray(value) &&
-  'data' in value &&
+  'id' in value &&
   'type' in value
 
 /**
@@ -25,8 +27,8 @@ const documentRefinement = (value: unknown): value is prismic.Document =>
  * @returns Normalized Prismic document.
  */
 export const normalizeDocument = (
-  doc: prismic.Document,
-): RTE.ReaderTaskEither<Dependencies, Error, prismic.Document> =>
+  doc: prismicT.PrismicDocument,
+): RTE.ReaderTaskEither<Dependencies, Error, prismicT.PrismicDocument> =>
   pipe(
     normalizeDocumentSubtree([doc.type], doc),
     RTE.chainW(

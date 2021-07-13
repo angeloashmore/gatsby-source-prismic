@@ -1,3 +1,5 @@
+import * as prismicH from '@prismicio/helpers'
+import * as prismicT from '@prismicio/types'
 import * as gatsbyPrismic from 'gatsby-source-prismic'
 import * as RE from 'fp-ts/ReaderEither'
 import * as O from 'fp-ts/Option'
@@ -6,11 +8,8 @@ import { NodeHelpers } from 'gatsby-node-helpers'
 
 import {
   FieldNameTransformer,
-  HTMLSerializer,
-  LinkResolver,
   PluginOptions,
   PrismicAPIDocumentNodeInput,
-  UnknownRecord,
 } from '../types'
 
 import * as documentDataFieldProxy from '../fieldProxies/documentDataFieldProxy'
@@ -28,12 +27,12 @@ import { refineFieldValue } from './refineFieldValue'
 export interface ProxyDocumentSubtreeEnv {
   getTypePath(path: string[]): gatsbyPrismic.PrismicTypePathType | undefined
   getNode(id: string): PrismicAPIDocumentNodeInput | undefined
-  linkResolver: LinkResolver
-  htmlSerializer?: HTMLSerializer
+  linkResolver: prismicH.LinkResolverFunction
+  htmlSerializer?: prismicH.HTMLMapSerializer | prismicH.HTMLFunctionSerializer
   imageImgixParams: PluginOptions['imageImgixParams']
   imagePlaceholderImgixParams: PluginOptions['imagePlaceholderImgixParams']
   nodeHelpers: NodeHelpers
-  createContentDigest(input: string | UnknownRecord): string
+  createContentDigest<T>(input: T): string
   transformFieldName: FieldNameTransformer
 }
 
@@ -79,7 +78,7 @@ export const proxyDocumentSubtree = (
           )
         }
 
-        case gatsbyPrismic.PrismicFieldType.Group: {
+        case prismicT.CustomTypeModelFieldType.Group: {
           return pipe(
             value,
             refineFieldValue(groupFieldProxy.valueRefinement, env.type, path),
@@ -87,7 +86,7 @@ export const proxyDocumentSubtree = (
           )
         }
 
-        case gatsbyPrismic.PrismicFieldType.Slices: {
+        case prismicT.CustomTypeModelFieldType.Slices: {
           return pipe(
             value,
             refineFieldValue(slicesFieldProxy.valueRefinement, env.type, path),
@@ -95,7 +94,7 @@ export const proxyDocumentSubtree = (
           )
         }
 
-        case gatsbyPrismic.PrismicFieldType.Slice: {
+        case prismicT.CustomTypeModelSliceType.Slice: {
           return pipe(
             value,
             refineFieldValue(sliceFieldProxy.valueRefinement, env.type, path),
@@ -103,7 +102,7 @@ export const proxyDocumentSubtree = (
           )
         }
 
-        case gatsbyPrismic.PrismicFieldType.Link: {
+        case prismicT.CustomTypeModelFieldType.Link: {
           return pipe(
             value,
             refineFieldValue(linkFieldProxy.valueRefinement, env.type, path),
@@ -111,7 +110,7 @@ export const proxyDocumentSubtree = (
           )
         }
 
-        case gatsbyPrismic.PrismicFieldType.Image: {
+        case prismicT.CustomTypeModelFieldType.Image: {
           return pipe(
             value,
             refineFieldValue(imageFieldProxy.valueRefinement, env.type, path),
@@ -119,7 +118,7 @@ export const proxyDocumentSubtree = (
           )
         }
 
-        case gatsbyPrismic.PrismicFieldType.StructuredText: {
+        case prismicT.CustomTypeModelFieldType.StructuredText: {
           return pipe(
             value,
             refineFieldValue(
@@ -131,16 +130,16 @@ export const proxyDocumentSubtree = (
           )
         }
 
-        case gatsbyPrismic.PrismicFieldType.Boolean:
-        case gatsbyPrismic.PrismicFieldType.Color:
-        case gatsbyPrismic.PrismicFieldType.Date:
-        case gatsbyPrismic.PrismicFieldType.Embed:
-        case gatsbyPrismic.PrismicFieldType.GeoPoint:
-        case gatsbyPrismic.PrismicFieldType.Number:
-        case gatsbyPrismic.PrismicFieldType.Select:
-        case gatsbyPrismic.PrismicFieldType.Text:
-        case gatsbyPrismic.PrismicFieldType.Timestamp:
-        case gatsbyPrismic.PrismicFieldType.UID:
+        case prismicT.CustomTypeModelFieldType.Boolean:
+        case prismicT.CustomTypeModelFieldType.Color:
+        case prismicT.CustomTypeModelFieldType.Date:
+        case prismicT.CustomTypeModelFieldType.Embed:
+        case prismicT.CustomTypeModelFieldType.GeoPoint:
+        case prismicT.CustomTypeModelFieldType.Number:
+        case prismicT.CustomTypeModelFieldType.Select:
+        case prismicT.CustomTypeModelFieldType.Text:
+        case prismicT.CustomTypeModelFieldType.Timestamp:
+        case prismicT.CustomTypeModelFieldType.UID:
         default: {
           return RE.of(value)
         }

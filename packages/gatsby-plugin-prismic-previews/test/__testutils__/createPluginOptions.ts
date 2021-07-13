@@ -1,6 +1,6 @@
 import * as ava from 'ava'
 import * as sinon from 'sinon'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
 import * as crypto from 'crypto'
 
 import { PluginOptions } from '../../src'
@@ -11,7 +11,7 @@ export const createPluginOptions = (t: ava.ExecutionContext): PluginOptions => {
   return {
     repositoryName,
     accessToken: 'accessToken',
-    apiEndpoint: prismic.defaultEndpoint(repositoryName),
+    apiEndpoint: prismic.getEndpoint(repositoryName),
     typePrefix: 'prefix',
     lang: '*',
     toolbar: 'new',

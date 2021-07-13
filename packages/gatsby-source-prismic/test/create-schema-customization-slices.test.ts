@@ -1,11 +1,11 @@
 import test from 'ava'
 import * as sinon from 'sinon'
+import * as prismicT from '@prismicio/types'
 
 import { createGatsbyContext } from './__testutils__/createGatsbyContext'
 import { createPluginOptions } from './__testutils__/createPluginOptions'
 import { findCreateTypesCall } from './__testutils__/findCreateTypesCall'
 
-import { PrismicFieldType } from '../src'
 import { createSchemaCustomization } from '../src/gatsby-node'
 
 test('creates types for each slice choice', async (t) => {
@@ -16,36 +16,46 @@ test('creates types for each slice choice', async (t) => {
     foo: {
       Main: {
         slices: {
-          type: PrismicFieldType.Slices,
+          type: prismicT.CustomTypeModelFieldType.Slices,
+          fieldset: 'Slice zone',
           config: {
+            labels: {},
             choices: {
               foo: {
-                type: PrismicFieldType.Slice,
+                type: prismicT.CustomTypeModelSliceType.Slice,
+                fieldset: 'Slice zone',
+                description: '',
+                icon: '',
+                display: prismicT.CustomTypeModelSliceDisplay.List,
                 repeat: {
                   repeat_text: {
-                    type: PrismicFieldType.Text,
-                    config: {},
+                    type: prismicT.CustomTypeModelFieldType.Text,
+                    config: { label: 'Text' },
                   },
                 },
                 'non-repeat': {
                   non_repeat_text: {
-                    type: PrismicFieldType.Text,
-                    config: {},
+                    type: prismicT.CustomTypeModelFieldType.Text,
+                    config: { label: 'Text' },
                   },
                 },
               },
               bar: {
-                type: PrismicFieldType.Slice,
+                type: prismicT.CustomTypeModelSliceType.Slice,
+                fieldset: 'Slice zone',
+                description: '',
+                icon: '',
+                display: prismicT.CustomTypeModelSliceDisplay.List,
                 repeat: {
                   repeat_text: {
-                    type: PrismicFieldType.Text,
-                    config: {},
+                    type: prismicT.CustomTypeModelFieldType.Text,
+                    config: { label: 'Text' },
                   },
                 },
                 'non-repeat': {
                   non_repeat_text: {
-                    type: PrismicFieldType.Text,
-                    config: {},
+                    type: prismicT.CustomTypeModelFieldType.Text,
+                    config: { label: 'Text' },
                   },
                 },
               },
@@ -172,21 +182,27 @@ test('id field resolves to a unique id', async (t) => {
     foo: {
       Main: {
         slices: {
-          type: PrismicFieldType.Slices,
+          type: prismicT.CustomTypeModelFieldType.Slices,
+          fieldset: 'Slice zone',
           config: {
+            labels: {},
             choices: {
               foo: {
-                type: PrismicFieldType.Slice,
+                type: prismicT.CustomTypeModelSliceType.Slice,
+                fieldset: 'Slice zone',
+                description: '',
+                icon: '',
+                display: prismicT.CustomTypeModelSliceDisplay.List,
                 repeat: {
                   repeat_text: {
-                    type: PrismicFieldType.Text,
-                    config: {},
+                    type: prismicT.CustomTypeModelFieldType.Text,
+                    config: { label: 'Text' },
                   },
                 },
                 'non-repeat': {
                   non_repeat_text: {
-                    type: PrismicFieldType.Text,
-                    config: {},
+                    type: prismicT.CustomTypeModelFieldType.Text,
+                    config: { label: 'Text' },
                   },
                 },
               },

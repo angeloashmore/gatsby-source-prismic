@@ -1,9 +1,10 @@
 import test from 'ava'
 import * as mswNode from 'msw/node'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
 import * as cookie from 'es-cookie'
-import { renderHook } from '@testing-library/react-hooks'
-import globalJsdom from 'global-jsdom'
+import * as assert from 'assert'
+import { renderHook, act, cleanup } from '@testing-library/react-hooks'
+import browserEnv from 'browser-env'
 
 import { clearAllCookies } from './__testutils__/clearAllCookies'
 import { createAPIQueryMockedRequest } from './__testutils__/createAPIQueryMockedRequest'
@@ -20,6 +21,8 @@ import {
   PrismicPreviewProvider,
   usePrismicPreviewResolver,
   PrismicRepositoryConfigs,
+  usePrismicPreviewContext,
+  PrismicPreviewState,
 } from '../src'
 import { onClientEntry } from '../src/gatsby-browser'
 
@@ -36,13 +39,21 @@ const createConfig = (
 const server = mswNode.setupServer()
 test.before(() => {
   polyfillKy()
-  globalJsdom(undefined, {
+  browserEnv(['window', 'document'], {
     url: 'https://example.com',
   })
   server.listen({ onUnhandledRequest: 'error' })
+  window.requestAnimationFrame = function (callback) {
+    return setTimeout(callback, 0)
+  }
+  globalThis.location = window.location
+  globalThis.__PATH_PREFIX__ = 'https://example.com'
 })
 test.beforeEach(() => {
   clearAllCookies()
+})
+test.afterEach(() => {
+  cleanup()
 })
 test.after(() => {
   server.close()
@@ -51,17 +62,15 @@ test.after(() => {
 test.serial('initial state', async (t) => {
   const gatsbyContext = createGatsbyContext()
   const pluginOptions = createPluginOptions(t)
-  const config = createConfig(pluginOptions)
 
   // @ts-expect-error - Partial gatsbyContext provided
   await onClientEntry(gatsbyContext, pluginOptions)
-  const { result } = renderHook(() => usePrismicPreviewResolver(config), {
+  const { result } = renderHook(() => usePrismicPreviewContext(), {
     wrapper: PrismicPreviewProvider,
   })
 
-  t.true(result.current[0].state === 'INIT')
-  t.true(result.current[0].path === undefined)
-  t.true(result.current[0].error === undefined)
+  t.is(result.current[0].previewState, PrismicPreviewState.IDLE)
+  t.is(result.current[0].resolvedPath, undefined)
 })
 
 test.serial('fails if documentId is not in URL', async (t) => {
@@ -75,23 +84,28 @@ test.serial('fails if documentId is not in URL', async (t) => {
 
   // @ts-expect-error - Partial gatsbyContext provided
   await onClientEntry(gatsbyContext, pluginOptions)
-  const { result, waitForNextUpdate } = renderHook(
-    () => usePrismicPreviewResolver(config),
+  const { result, waitFor } = renderHook(
+    () => {
+      const context = usePrismicPreviewContext()
+      const resolve = usePrismicPreviewResolver(config)
+
+      return { resolve, context }
+    },
     { wrapper: PrismicPreviewProvider },
   )
-  const resolvePreview = result.current[1]
 
-  resolvePreview()
+  act(() => {
+    result.current.resolve()
+  })
 
-  await waitForNextUpdate()
-
-  t.true(result.current[0].state === 'FAILED')
-  t.true(
-    result.current[0].error?.message &&
-      /documentId URL parameter not present/i.test(
-        result.current[0].error?.message,
-      ),
+  await waitFor(() =>
+    assert.ok(
+      result.current.context[0].previewState ===
+        PrismicPreviewState.NOT_PREVIEW,
+    ),
   )
+
+  t.is(result.current.context[0].previewState, PrismicPreviewState.NOT_PREVIEW)
 })
 
 test.serial('fails if token is not in cookies', async (t) => {
@@ -104,21 +118,28 @@ test.serial('fails if token is not in cookies', async (t) => {
 
   // @ts-expect-error - Partial gatsbyContext provided
   await onClientEntry(gatsbyContext, pluginOptions)
-  const { result, waitForNextUpdate } = renderHook(
-    () => usePrismicPreviewResolver(config),
+  const { result, waitFor } = renderHook(
+    () => {
+      const context = usePrismicPreviewContext()
+      const resolve = usePrismicPreviewResolver(config)
+
+      return { resolve, context }
+    },
     { wrapper: PrismicPreviewProvider },
   )
-  const resolvePreview = result.current[1]
 
-  resolvePreview()
+  act(() => {
+    result.current.resolve()
+  })
 
-  await waitForNextUpdate()
-
-  t.true(result.current[0].state === 'FAILED')
-  t.true(
-    result.current[0].error?.message &&
-      /not a preview session/i.test(result.current[0].error?.message),
+  await waitFor(() =>
+    assert.ok(
+      result.current.context[0].previewState ===
+        PrismicPreviewState.NOT_PREVIEW,
+    ),
   )
+
+  t.is(result.current.context[0].previewState, PrismicPreviewState.NOT_PREVIEW)
 })
 
 test.serial('resolves a path using the link resolver', async (t) => {
@@ -145,21 +166,31 @@ test.serial('resolves a path using the link resolver', async (t) => {
 
   // @ts-expect-error - Partial gatsbyContext provided
   await onClientEntry(gatsbyContext, pluginOptions)
-  const { result, waitForValueToChange } = renderHook(
-    () => usePrismicPreviewResolver(config),
+  const { result, waitFor } = renderHook(
+    () => {
+      const context = usePrismicPreviewContext()
+      const resolve = usePrismicPreviewResolver(config)
+
+      return { resolve, context }
+    },
     { wrapper: PrismicPreviewProvider },
   )
-  const resolvePreview = result.current[1]
 
-  t.true(result.current[0].state === 'INIT')
+  act(() => {
+    result.current.resolve()
+  })
 
-  resolvePreview()
+  await waitFor(() =>
+    assert.ok(
+      result.current.context[0].previewState === PrismicPreviewState.RESOLVING,
+    ),
+  )
+  await waitFor(() =>
+    assert.ok(
+      result.current.context[0].previewState === PrismicPreviewState.RESOLVED,
+    ),
+  )
 
-  await waitForValueToChange(() => result.current[0].state)
-  t.true(result.current[0].state === 'RESOLVING')
-
-  await waitForValueToChange(() => result.current[0].state)
-  t.true(result.current[0].state === 'RESOLVED')
-  t.true(result.current[0].path === `/${doc.id}`)
-  t.true(result.current[0].error === undefined)
+  t.is(result.current.context[0].resolvedPath, `/${doc.id}`)
+  t.is(result.current.context[0].error, undefined)
 })

@@ -1,8 +1,9 @@
 import * as gatsby from 'gatsby'
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import { pipe } from 'fp-ts/function'
 
-import { Dependencies, PrismicSchemaField } from '../types'
+import { Dependencies } from '../types'
 import { buildObjectType } from './buildObjectType'
 import { buildFieldConfigMap } from './buildFieldConfigMap'
 
@@ -18,7 +19,7 @@ import { buildFieldConfigMap } from './buildFieldConfigMap'
  */
 export const buildSchemaRecordType = (
   path: string[],
-  record: Record<string, PrismicSchemaField>,
+  record: Record<string, prismicT.CustomTypeModelField>,
   typeName: string | string[] = path,
 ): RTE.ReaderTaskEither<Dependencies, never, gatsby.GatsbyGraphQLObjectType> =>
   pipe(

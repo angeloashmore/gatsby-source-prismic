@@ -1,6 +1,7 @@
 import test from 'ava'
 import * as sinon from 'sinon'
 import * as mswNode from 'msw/node'
+import * as prismicT from '@prismicio/types'
 
 import { createAPIQueryMockedRequest } from './__testutils__/createAPIQueryMockedRequest'
 import { createAPIRepositoryMockedRequest } from './__testutils__/createAPIRepositoryMockedRequest'
@@ -9,7 +10,6 @@ import { createPluginOptions } from './__testutils__/createPluginOptions'
 import { createPrismicAPIDocument } from './__testutils__/createPrismicAPIDocument'
 import { createPrismicAPIQueryResponse } from './__testutils__/createPrismicAPIQueryResponse'
 
-import { PrismicFieldType } from '../src'
 import { createSchemaCustomization, sourceNodes } from '../src/gatsby-node'
 
 const server = mswNode.setupServer()
@@ -59,27 +59,28 @@ test('embed fields are normalized to inferred nodes', async (t) => {
     data: {
       embed: {
         embed_url: 'https://youtube.com/1',
-      },
+      } as prismicT.EmbedField,
       group: [
         {
           embed: {
             embed_url: 'https://youtube.com/2',
-          },
+          } as prismicT.EmbedField,
         },
       ],
       slices: [
         {
           slice_type: 'embed',
+          slice_label: '',
           primary: {
             embed: {
               embed_url: 'https://youtube.com/3',
-            },
+            } as prismicT.EmbedField,
           },
           items: [
             {
               embed: {
                 embed_url: 'https://youtube.com/4',
-              },
+              } as prismicT.EmbedField,
             },
           ],
         },
@@ -91,26 +92,45 @@ test('embed fields are normalized to inferred nodes', async (t) => {
   pluginOptions.schemas = {
     type: {
       Main: {
-        embed: { type: PrismicFieldType.Embed, config: {} },
+        embed: {
+          type: prismicT.CustomTypeModelFieldType.Embed,
+          config: { label: 'Embed' },
+        },
         group: {
-          type: PrismicFieldType.Group,
+          type: prismicT.CustomTypeModelFieldType.Group,
           config: {
+            label: 'Group',
             fields: {
-              embed: { type: PrismicFieldType.Embed, config: {} },
+              embed: {
+                type: prismicT.CustomTypeModelFieldType.Embed,
+                config: { label: 'Embed' },
+              },
             },
           },
         },
         slices: {
-          type: PrismicFieldType.Slices,
+          type: prismicT.CustomTypeModelFieldType.Slices,
+          fieldset: 'Slice zone',
           config: {
+            labels: {},
             choices: {
               embed: {
-                type: PrismicFieldType.Slice,
+                type: prismicT.CustomTypeModelSliceType.Slice,
+                fieldset: 'Slice zone',
+                description: '',
+                icon: '',
+                display: prismicT.CustomTypeModelSliceDisplay.List,
                 repeat: {
-                  embed: { type: PrismicFieldType.Embed, config: {} },
+                  embed: {
+                    type: prismicT.CustomTypeModelFieldType.Embed,
+                    config: { label: 'Embed' },
+                  },
                 },
                 'non-repeat': {
-                  embed: { type: PrismicFieldType.Embed, config: {} },
+                  embed: {
+                    type: prismicT.CustomTypeModelFieldType.Embed,
+                    config: { label: 'Embed' },
+                  },
                 },
               },
             },
@@ -200,12 +220,14 @@ test('integration fields are normalized to inferred nodes', async (t) => {
   const pluginOptions = createPluginOptions(t)
   const docWithIntegrationId = createPrismicAPIDocument({
     data: {
+      // @ts-expect-error - Integration fields are not supported yet in @prismicio/types
       integration: {
         id: 1,
         foo: 'bar',
       },
       group: [
         {
+          // @ts-expect-error - Integration fields are not supported yet in @prismicio/types
           integration: {
             id: 2,
             foo: 'bar',
@@ -214,6 +236,7 @@ test('integration fields are normalized to inferred nodes', async (t) => {
       ],
       slices: [
         {
+          // @ts-expect-error - Integration fields are not supported yet in @prismicio/types
           slice_type: 'integration',
           primary: {
             integration: {
@@ -236,6 +259,7 @@ test('integration fields are normalized to inferred nodes', async (t) => {
   })
   const docWithoutIntegrationId = createPrismicAPIDocument({
     data: {
+      // @ts-expect-error - Integration fields are not supported yet in @prismicio/types
       integration: {
         foo: 'bar',
       },
@@ -250,34 +274,44 @@ test('integration fields are normalized to inferred nodes', async (t) => {
   pluginOptions.schemas = {
     foo: {
       Main: {
-        integration: { type: PrismicFieldType.IntegrationFields, config: {} },
+        integration: {
+          type: prismicT.CustomTypeModelFieldType.IntegrationFields,
+          config: { label: 'Integration', catalog: 'catalog' },
+        },
         group: {
-          type: PrismicFieldType.Group,
+          type: prismicT.CustomTypeModelFieldType.Group,
           config: {
+            label: 'Group',
             fields: {
               integration: {
-                type: PrismicFieldType.IntegrationFields,
-                config: {},
+                type: prismicT.CustomTypeModelFieldType.IntegrationFields,
+                config: { label: 'Integration', catalog: 'catalog' },
               },
             },
           },
         },
         slices: {
-          type: PrismicFieldType.Slices,
+          type: prismicT.CustomTypeModelFieldType.Slices,
+          fieldset: 'Slice zone',
           config: {
+            labels: {},
             choices: {
               integration: {
-                type: PrismicFieldType.Slice,
+                type: prismicT.CustomTypeModelSliceType.Slice,
+                fieldset: 'Slice zone',
+                description: '',
+                icon: '',
+                display: prismicT.CustomTypeModelSliceDisplay.List,
                 repeat: {
                   integration: {
-                    type: PrismicFieldType.IntegrationFields,
-                    config: {},
+                    type: prismicT.CustomTypeModelFieldType.IntegrationFields,
+                    config: { label: 'Integration', catalog: 'catalog' },
                   },
                 },
                 'non-repeat': {
                   integration: {
-                    type: PrismicFieldType.IntegrationFields,
-                    config: {},
+                    type: prismicT.CustomTypeModelFieldType.IntegrationFields,
+                    config: { label: 'Integration', catalog: 'catalog' },
                   },
                 },
               },
@@ -334,6 +368,7 @@ test('integration fields are normalized to inferred nodes', async (t) => {
   t.true(
     createNodeStub.calledWith(
       sinon.match({
+        // @ts-expect-error - Integration fields are not supported yet in @prismicio/types
         prismicId: docWithIntegrationId.data.integration.id,
         internal: sinon.match({
           type: 'PrismicPrefixFooDataIntegrationIntegrationType',
@@ -345,6 +380,7 @@ test('integration fields are normalized to inferred nodes', async (t) => {
   t.true(
     createNodeStub.calledWith(
       sinon.match({
+        // @ts-expect-error - Integration fields are not supported yet in @prismicio/types
         prismicId: docWithIntegrationId.data.group[0].integration.id,
         internal: sinon.match({
           type: 'PrismicPrefixFooDataGroupIntegrationIntegrationType',
@@ -356,6 +392,7 @@ test('integration fields are normalized to inferred nodes', async (t) => {
   t.true(
     createNodeStub.calledWith(
       sinon.match({
+        // @ts-expect-error - Integration fields are not supported yet in @prismicio/types
         prismicId: docWithIntegrationId.data.slices[0].primary.integration.id,
         internal: sinon.match({
           type:
@@ -368,6 +405,7 @@ test('integration fields are normalized to inferred nodes', async (t) => {
   t.true(
     createNodeStub.calledWith(
       sinon.match({
+        // @ts-expect-error - Integration fields are not supported yet in @prismicio/types
         prismicId: docWithIntegrationId.data.slices[0].items[0].integration.id,
         internal: sinon.match({
           type:
@@ -381,6 +419,7 @@ test('integration fields are normalized to inferred nodes', async (t) => {
     createNodeStub.calledWith(
       sinon.match({
         prismicId: gatsbyContext.createContentDigest?.(
+          // @ts-expect-error - Integration fields are not supported yet in @prismicio/types
           docWithoutIntegrationId.data.integration,
         ),
         internal: sinon.match({

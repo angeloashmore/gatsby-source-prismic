@@ -1,10 +1,10 @@
 import * as crypto from 'crypto'
-
-import { PrismicCustomTypeApiCustomType, PrismicFieldType } from '../../src'
+import * as prismicT from '@prismicio/types'
+import * as prismicCustomTypes from '@prismicio/custom-types-client'
 
 export const createCustomTypesAPICustomType = (
-  customType?: Partial<PrismicCustomTypeApiCustomType>,
-): PrismicCustomTypeApiCustomType => {
+  customType?: Partial<prismicCustomTypes.CustomType>,
+): prismicCustomTypes.CustomType => {
   const id = crypto
     .createHash('md5')
     .update(Math.random().toString())
@@ -16,9 +16,13 @@ export const createCustomTypesAPICustomType = (
     repeatable: true,
     json: {
       Main: {
-        foo: { type: PrismicFieldType.Text, config: {} },
+        foo: {
+          type: prismicT.CustomTypeModelFieldType.Text,
+          config: { label: 'Foo' },
+        },
       },
     },
+    status: true,
     ...customType,
   }
 }

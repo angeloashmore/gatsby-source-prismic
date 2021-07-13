@@ -1,9 +1,10 @@
 import test from 'ava'
 import * as mswNode from 'msw/node'
 import * as gatsbyPrismic from 'gatsby-source-prismic'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
 import * as cookie from 'es-cookie'
-import { renderHook, act } from '@testing-library/react-hooks'
+import * as assert from 'assert'
+import { renderHook, act, cleanup } from '@testing-library/react-hooks'
 import { createNodeHelpers } from 'gatsby-node-helpers'
 import md5 from 'tiny-hashes/md5'
 import browserEnv from 'browser-env'
@@ -26,6 +27,7 @@ import {
   usePrismicPreviewContext,
   PluginOptions,
   PrismicRepositoryConfigs,
+  PrismicPreviewState,
 } from '../src'
 import { onClientEntry } from '../src/gatsby-browser'
 
@@ -59,10 +61,16 @@ test.before(() => {
   polyfillKy()
   browserEnv(['window', 'document'])
   server.listen({ onUnhandledRequest: 'error' })
+  window.requestAnimationFrame = function (callback) {
+    return setTimeout(callback, 0)
+  }
   globalThis.__PATH_PREFIX__ = 'https://example.com'
 })
 test.beforeEach(() => {
   clearAllCookies()
+})
+test.afterEach(() => {
+  cleanup()
 })
 test.after(() => {
   server.close()
@@ -124,7 +132,7 @@ test.serial(
     // @ts-expect-error - Partial gatsbyContext provided
     await onClientEntry(gatsbyContext, pluginOptions)
 
-    const { result, waitForValueToChange } = renderHook(
+    const { result, waitFor } = renderHook(
       () => {
         const context = usePrismicPreviewContext()
         const bootstrap = usePrismicPreviewBootstrap(config)
@@ -136,15 +144,20 @@ test.serial(
     )
 
     act(() => {
-      const [, bootstrapPreview] = result.current.bootstrap
-      bootstrapPreview()
+      result.current.bootstrap()
     })
 
-    await waitForValueToChange(() => result.current.bootstrap[0].state)
-    t.true(result.current.bootstrap[0].state === 'BOOTSTRAPPING')
-
-    await waitForValueToChange(() => result.current.bootstrap[0].state)
-    t.true(result.current.bootstrap[0].state === 'BOOTSTRAPPED')
+    await waitFor(() =>
+      assert.ok(
+        result.current.context[0].previewState ===
+          PrismicPreviewState.BOOTSTRAPPING,
+      ),
+    )
+    await waitFor(() =>
+      assert.ok(
+        result.current.context[0].previewState === PrismicPreviewState.ACTIVE,
+      ),
+    )
 
     t.true(result.current.mergedData.isPreview)
     t.true(
@@ -193,7 +206,7 @@ test('allows skipping', async (t) => {
   // @ts-expect-error - Partial gatsbyContext provided
   await onClientEntry(gatsbyContext, pluginOptions)
 
-  const { result, waitForValueToChange } = renderHook(
+  const { result, waitFor } = renderHook(
     () => {
       const context = usePrismicPreviewContext()
       const bootstrap = usePrismicPreviewBootstrap(config)
@@ -205,15 +218,20 @@ test('allows skipping', async (t) => {
   )
 
   act(() => {
-    const [, bootstrapPreview] = result.current.bootstrap
-    bootstrapPreview()
+    result.current.bootstrap()
   })
 
-  await waitForValueToChange(() => result.current.bootstrap[0].state)
-  t.true(result.current.bootstrap[0].state === 'BOOTSTRAPPING')
-
-  await waitForValueToChange(() => result.current.bootstrap[0].state)
-  t.true(result.current.bootstrap[0].state === 'BOOTSTRAPPED')
+  await waitFor(() =>
+    assert.ok(
+      result.current.context[0].previewState ===
+        PrismicPreviewState.BOOTSTRAPPING,
+    ),
+  )
+  await waitFor(() =>
+    assert.ok(
+      result.current.context[0].previewState === PrismicPreviewState.ACTIVE,
+    ),
+  )
 
   t.false(result.current.mergedData.isPreview)
   t.true(result.current.mergedData.data === staticData)

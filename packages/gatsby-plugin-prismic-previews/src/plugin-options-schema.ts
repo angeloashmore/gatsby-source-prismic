@@ -1,5 +1,5 @@
 import * as gatsby from 'gatsby'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
 import { promises as fs } from 'fs'
 import {
   DEFAULT_IMGIX_PARAMS,
@@ -28,7 +28,7 @@ export const pluginOptionsSchema: NonNullable<
       DEFAULT_PROMPT_FOR_ACCESS_TOKEN,
     ),
     apiEndpoint: Joi.string().default((parent) =>
-      prismic.defaultEndpoint(parent.repositoryName),
+      prismic.getEndpoint(parent.repositoryName),
     ),
     graphQuery: Joi.string(),
     fetchLinks: Joi.array().items(Joi.string().required()),

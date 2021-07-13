@@ -63,14 +63,6 @@ export const DEFAULT_PLACEHOLDER_IMGIX_PARAMS = {
 export const DEFAULT_LANG = '*'
 
 /**
- * Page size used when querying for documents using the Prismic SDK.
- *
- * If users ever experience memory issues during the `sourceNodes` stage, this
- * number should be decreased.
- */
-export const QUERY_PAGE_SIZE = 100
-
-/**
  * Format used for all plugin reporting. Includes the plugin's name and the
  * instance's repository name (helpful when multiple repositories are
  * configured).
@@ -98,12 +90,6 @@ export const WEBHOOK_SECRET_MISMATCH_MSG =
  */
 export const WEBHOOK_TEST_TRIGGER_SUCCESS_MSG =
   'Success! Received a test trigger webhook. When changes to your content are saved, Gatsby will automatically fetch the changes.'
-
-/**
- * Message displayed to the user when a repository cannot be accessed.
- */
-export const COULD_NOT_ACCESS_MSG =
-  'The repository could not be accessed. Please check your repository name and access token.'
 
 /**
  * Message displayed to the user when a missing custom type schema is detected.

@@ -1,3 +1,4 @@
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import { identity, pipe } from 'fp-ts/function'
 
@@ -5,12 +6,7 @@ import { createTypePath } from '../lib/createTypePath'
 import { dotPath } from '../lib/dotPath'
 import { reportInfo } from '../lib/reportInfo'
 
-import {
-  Dependencies,
-  FieldConfigCreator,
-  PrismicSchemaField,
-  PrismicSpecialType,
-} from '../types'
+import { Dependencies, FieldConfigCreator, PrismicSpecialType } from '../types'
 
 /**
  * Builds a GraphQL field configuration object for a Custom Type field with an
@@ -32,7 +28,7 @@ import {
  */
 export const buildUnknownFieldConfig: FieldConfigCreator = (
   path: string[],
-  schema: PrismicSchemaField,
+  schema: prismicT.CustomTypeModelField,
 ) =>
   pipe(
     RTE.ask<Dependencies>(),

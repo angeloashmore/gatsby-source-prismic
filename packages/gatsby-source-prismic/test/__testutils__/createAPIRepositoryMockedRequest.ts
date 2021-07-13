@@ -1,9 +1,11 @@
 import * as msw from 'msw'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
+
+import { isValidAccessToken } from './isValidAccessToken'
 
 import { PluginOptions } from '../../src'
 
-const DEFAULT_RESPONSE: prismic.Response.Repository = {
+const DEFAULT_RESPONSE: prismic.Repository = {
   types: { foo: 'Foo' },
   refs: [
     {
@@ -23,7 +25,8 @@ const DEFAULT_RESPONSE: prismic.Response.Repository = {
   ],
   bookmarks: {},
   tags: [],
-  licence: 'license',
+  forms: {},
+  license: 'license',
   languages: [{ id: 'fr-fr', name: 'fr-fr' }],
   experiments: {},
   oauth_initiate: 'oauth_initiate',
@@ -33,15 +36,19 @@ const DEFAULT_RESPONSE: prismic.Response.Repository = {
 
 export const createAPIRepositoryMockedRequest = (
   pluginOptions: PluginOptions,
-  overrides?: Partial<prismic.Response.Repository>,
+  overrides?: Partial<prismic.Repository>,
 ): msw.RestHandler =>
   msw.rest.get(pluginOptions.apiEndpoint, (req, res, ctx) => {
-    if (
-      req.url.searchParams.get('access_token') === pluginOptions.accessToken ||
-      !pluginOptions.accessToken
-    ) {
+    if (isValidAccessToken(pluginOptions.accessToken, req)) {
       return res(ctx.json({ ...DEFAULT_RESPONSE, ...overrides }))
     } else {
-      return res(ctx.status(401))
+      return res(
+        ctx.status(403),
+        ctx.json({
+          error: '[MOCK ERROR]',
+          oauth_initiate: 'oauth_initiate',
+          oauth_token: 'oauth_token',
+        }),
+      )
     }
   })

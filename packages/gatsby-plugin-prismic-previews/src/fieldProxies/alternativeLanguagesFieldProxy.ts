@@ -4,7 +4,7 @@
  * `documentFieldProxy`.
  */
 
-import * as gatsbyPrismic from 'gatsby-source-prismic'
+import * as prismicT from '@prismicio/types'
 import * as RE from 'fp-ts/ReaderEither'
 import * as A from 'fp-ts/Array'
 import * as O from 'fp-ts/Option'
@@ -13,12 +13,14 @@ import { pipe } from 'fp-ts/function'
 import { ProxyDocumentSubtreeEnv } from '../lib/proxyDocumentSubtree'
 import { createGetProxy } from '../lib/createGetProxy'
 
+import { IterableElement } from '../types'
+
 const proxyElement = (
-  element: gatsbyPrismic.PrismicAPIAlternateLanguageField,
+  element: IterableElement<prismicT.PrismicDocument['alternate_languages']>,
 ): RE.ReaderEither<
   ProxyDocumentSubtreeEnv,
   Error,
-  gatsbyPrismic.PrismicAPIAlternateLanguageField
+  IterableElement<prismicT.PrismicDocument['alternate_languages']>
 > =>
   pipe(
     RE.ask<ProxyDocumentSubtreeEnv>(),
@@ -46,11 +48,11 @@ const proxyElement = (
   )
 
 export const proxyValue = (
-  fieldValue: gatsbyPrismic.PrismicAPIAlternateLanguageField[],
+  fieldValue: prismicT.PrismicDocument['alternate_languages'],
 ): RE.ReaderEither<
   ProxyDocumentSubtreeEnv,
   Error,
-  gatsbyPrismic.PrismicAPIAlternateLanguageField[]
+  prismicT.PrismicDocument['alternate_languages']
 > =>
   pipe(
     fieldValue,
@@ -58,6 +60,6 @@ export const proxyValue = (
     RE.sequenceArray,
     RE.map(
       // This is needed to return a non-readonly Array type.
-      (value) => value as gatsbyPrismic.PrismicAPIAlternateLanguageField[],
+      (value) => value as prismicT.PrismicDocument['alternate_languages'],
     ),
   )

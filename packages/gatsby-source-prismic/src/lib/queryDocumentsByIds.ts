@@ -1,9 +1,8 @@
-import * as prismic from 'ts-prismic'
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
+import { pipe } from 'fp-ts/function'
 
 import { Dependencies } from '../types'
-
-import { aggregateQuery } from './aggregateQuery'
 
 /**
  * Queries a list of documents by their IDs from a Prismic repository using the
@@ -22,5 +21,8 @@ import { aggregateQuery } from './aggregateQuery'
  */
 export const queryDocumentsByIds = (
   ids: string[],
-): RTE.ReaderTaskEither<Dependencies, Error, prismic.Document[]> =>
-  aggregateQuery(prismic.predicate.in('document.id', ids))
+): RTE.ReaderTaskEither<Dependencies, Error, prismicT.PrismicDocument[]> =>
+  pipe(
+    RTE.ask<Dependencies>(),
+    RTE.chain((env) => RTE.fromTask(() => env.prismicClient.getAllByIDs(ids))),
+  )

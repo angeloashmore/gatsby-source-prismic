@@ -1,13 +1,12 @@
 import * as gatsby from 'gatsby'
 import * as gatsbyFs from 'gatsby-source-filesystem'
 import * as imgixGatsby from '@imgix/gatsby'
+import * as prismic from '@prismicio/client'
+import * as prismicH from '@prismicio/helpers'
+import * as prismicT from '@prismicio/types'
 import * as gqlc from 'graphql-compose'
 import * as RTE from 'fp-ts/ReaderTaskEither'
-import * as prismic from 'ts-prismic'
-import * as PrismicDOM from 'prismic-dom'
 import { NodeHelpers } from 'gatsby-node-helpers'
-
-export type ResolveType<T> = T extends PromiseLike<infer U> ? U : T
 
 export type Mutable<T> = {
   -readonly [P in keyof T]: T[P]
@@ -17,6 +16,12 @@ export type UnknownRecord<K extends PropertyKey = PropertyKey> = Record<
   K,
   unknown
 >
+
+export type IterableElement<TargetIterable> = TargetIterable extends Iterable<
+  infer ElementType
+>
+  ? ElementType
+  : never
 
 export type JoiValidationError = InstanceType<
   gatsby.PluginOptionsSchemaArgs['Joi']['ValidationError']
@@ -30,6 +35,7 @@ export interface TypePath {
 export type TypePathNode = TypePath & gatsby.Node
 
 export interface Dependencies {
+  prismicClient: prismic.Client
   createTypes: gatsby.Actions['createTypes']
   createNode: gatsby.Actions['createNode']
   buildObjectType: gatsby.NodePluginSchema['buildObjectType']
@@ -60,14 +66,14 @@ export interface PluginOptions extends gatsby.PluginOptions {
   accessToken?: string
   apiEndpoint: string
   customTypesApiToken?: string
-  customTypesApiEndpoint: string
+  customTypesApiEndpoint?: string
   releaseID?: string
   graphQuery?: string
   fetchLinks?: string[]
   lang: string
-  linkResolver?: (doc: prismic.Document) => string
-  htmlSerializer?: typeof PrismicDOM.HTMLSerializer
-  schemas: Record<string, PrismicSchema>
+  linkResolver?: prismicH.LinkResolverFunction
+  htmlSerializer?: prismicH.HTMLFunctionSerializer | prismicH.HTMLMapSerializer
+  schemas: Record<string, prismicT.CustomTypeModel>
   imageImgixParams: imgixGatsby.ImgixUrlParams
   imagePlaceholderImgixParams: imgixGatsby.ImgixUrlParams
   typePrefix?: string
@@ -78,7 +84,7 @@ export interface PluginOptions extends gatsby.PluginOptions {
 }
 
 export type FieldConfigCreator<
-  TSchema extends PrismicSchemaField = PrismicSchemaField,
+  TSchema extends prismicT.CustomTypeModelField = prismicT.CustomTypeModelField,
 > = (
   path: string[],
   schema: TSchema,
@@ -88,21 +94,10 @@ export type FieldConfigCreator<
   gqlc.ObjectTypeComposerFieldConfigDefinition<unknown, unknown>
 >
 
-export interface PrismicSchema {
-  [tabName: string]: PrismicSchemaTab
-}
-
-export interface PrismicSchemaTab {
-  [fieldName: string]: PrismicSchemaField
-}
-
-export type PrismicSchemaField =
-  | PrismicSchemaStandardField
-  | PrismicSchemaImageField
-  | PrismicSchemaGroupField
-  | PrismicSchemaSlicesField
-
-export type PrismicTypePathType = PrismicSpecialType | PrismicFieldType
+export type PrismicTypePathType =
+  | PrismicSpecialType
+  | prismicT.CustomTypeModelFieldType
+  | prismicT.CustomTypeModelSliceType
 
 export enum PrismicSpecialType {
   Document = 'Document',
@@ -110,119 +105,10 @@ export enum PrismicSpecialType {
   Unknown = 'Unknown',
 }
 
-export enum PrismicFieldType {
-  Boolean = 'Boolean',
-  Color = 'Color',
-  Date = 'Date',
-  Embed = 'Embed',
-  GeoPoint = 'GeoPoint',
-  Group = 'Group',
-  Image = 'Image',
-  IntegrationFields = 'IntegrationFields',
-  Link = 'Link',
-  Number = 'Number',
-  Select = 'Select',
-  Slice = 'Slice',
-  Slices = 'Slices',
-  StructuredText = 'StructuredText',
-  Text = 'Text',
-  Timestamp = 'Timestamp',
-  UID = 'UID',
-}
-
-interface PrismicSchemaStandardField {
-  type: Exclude<PrismicFieldType, 'Image' | 'Group' | 'Slice' | 'Slices'>
-  config: {
-    label?: string
-    placeholder?: string
-  }
-}
-
-export interface PrismicSchemaImageField {
-  type: PrismicFieldType.Image
-  config: {
-    label?: string
-    thumbnails?: PrismicSchemaImageThumbnail[]
-  }
-}
-
-export interface PrismicSchemaImageThumbnail {
-  name: string
-  width?: number
-  height?: number
-}
-
-export interface PrismicSchemaGroupField {
-  type: PrismicFieldType.Group
-  config: {
-    label?: string
-    placeholder?: string
-    fields: Record<string, PrismicSchemaStandardField | PrismicSchemaImageField>
-  }
-}
-
-export interface PrismicSchemaSlicesField {
-  type: PrismicFieldType.Slices
-  config: {
-    labels?: Record<string, string[]>
-    choices: Record<string, PrismicSchemaSlice>
-  }
-}
-
-export interface PrismicSchemaSlice {
-  type: PrismicFieldType.Slice
-  'non-repeat': Record<string, PrismicSchemaStandardField>
-  repeat: Record<string, PrismicSchemaStandardField>
-}
-
-export type PrismicAPILinkField = {
-  link_type: 'Any' | 'Document' | 'Media' | 'Web'
-  isBroken: boolean
-  url?: string
-  target?: string
-  size?: number
-  id?: string
-  type?: string
-  tags?: string[]
-  lang?: string
-  slug?: string
-  uid?: string
-}
-
-export type PrismicAPIAlternateLanguageField = {
-  id: string
-  uid?: string
-  type: string
-  lang: string
-}
-
-export type PrismicAPIImageField = {
-  dimensions: { width: number; height: number } | null
-  alt: string | null
-  copyright: string | null
-  url: string | null
-  [key: string]: unknown
-}
-
-export type PrismicAPIStructuredTextField = {
-  type: string
-  text: string
-  spans: { [key: string]: unknown }
-}[]
-
-export interface PrismicAPIEmbedField extends UnknownRecord {
-  embed_url: string
-}
-
-export interface PrismicAPIDocumentNode extends prismic.Document, gatsby.Node {
+export interface PrismicAPIDocumentNode
+  extends prismicT.PrismicDocument,
+    gatsby.Node {
   prismicId: string
-}
-
-export type PrismicAPISliceField = {
-  slice_type: string
-  slice_label: string
-  items: UnknownRecord[]
-  primary: UnknownRecord
 }
 
 export type PrismicWebhookBody =
@@ -299,9 +185,11 @@ interface PrismicWebhookExperimentVariation {
 
 export type PrismicCustomTypeApiResponse = PrismicCustomTypeApiCustomType[]
 
-export interface PrismicCustomTypeApiCustomType {
+export interface PrismicCustomTypeApiCustomType<
+  Model extends prismicT.CustomTypeModel = prismicT.CustomTypeModel,
+> {
   id: string
   label: string
   repeatable: boolean
-  json: PrismicSchema
+  json: Model
 }

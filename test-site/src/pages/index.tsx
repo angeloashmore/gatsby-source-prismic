@@ -23,8 +23,6 @@ const HomePage = ({
   const [state] = usePrismicPreviewContext()
   const [token] = usePrismicPreviewAccessToken(repoName)
 
-  console.log(data.homeKitchenSink.data.body[0].items[0])
-
   return (
     <div>
       <GatsbyImageOld

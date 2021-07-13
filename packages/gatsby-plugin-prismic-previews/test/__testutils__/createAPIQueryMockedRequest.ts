@@ -1,9 +1,10 @@
 import * as msw from 'msw'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
+
+import { isValidAccessToken } from './isValidAccessToken'
+import { resolveURL } from './resolveURL'
 
 import { PluginOptions } from '../../src'
-
-import { resolveURL } from './resolveURL'
 
 interface APIQueryParams extends prismic.QueryParams {
   accessToken?: string
@@ -13,7 +14,7 @@ interface APIQueryParams extends prismic.QueryParams {
 
 export const createAPIQueryMockedRequest = (
   pluginOptions: PluginOptions,
-  queryResponse: prismic.Response.Query,
+  queryResponse: prismic.Query,
   searchParams: APIQueryParams = {},
 ): msw.RestHandler =>
   msw.rest.get(
@@ -21,27 +22,37 @@ export const createAPIQueryMockedRequest = (
     (req, res, ctx) => {
       const resolvedSearchParams = {
         ref: 'master',
-        lang: pluginOptions.lang,
-        page: 1,
         pageSize: 100,
+        lang: pluginOptions.lang,
+        fetchLinks: pluginOptions.fetchLinks,
+        graphQuery: pluginOptions.graphQuery,
         ...searchParams,
-        access_token: searchParams.accessToken ?? pluginOptions.accessToken,
       }
 
-      const searchParamsMatch = Object.keys(resolvedSearchParams)
-        .filter(
-          (key) => resolvedSearchParams[key as keyof APIQueryParams] != null,
-        )
-        .every(
-          (key) =>
-            req.url.searchParams.get(key) ===
+      const searchParamsMatch = Object.keys(resolvedSearchParams).every((key) =>
+        resolvedSearchParams[key as keyof APIQueryParams] == null
+          ? true
+          : req.url.searchParams.get(key) ===
             resolvedSearchParams[key as keyof APIQueryParams]?.toString(),
-        )
+      )
 
-      if (searchParamsMatch) {
+      if (
+        searchParamsMatch &&
+        isValidAccessToken(
+          searchParams.accessToken ?? pluginOptions.accessToken,
+          req,
+        )
+      ) {
         return res(ctx.json(queryResponse))
       } else {
-        return res(ctx.status(401))
+        return res(
+          ctx.status(403),
+          ctx.json({
+            error: '[MOCK ERROR]',
+            oauth_initiate: 'oauth_initiate',
+            oauth_token: 'oauth_token',
+          }),
+        )
       }
     },
   )

@@ -2,7 +2,8 @@ import test from 'ava'
 import * as assert from 'assert'
 import * as mswNode from 'msw/node'
 import * as gatsbyPrismic from 'gatsby-source-prismic'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
+import * as prismicH from '@prismicio/helpers'
 import * as cookie from 'es-cookie'
 import * as gatsby from 'gatsby'
 import * as React from 'react'
@@ -79,10 +80,6 @@ const Page = <TProps extends UnknownRecord = UnknownRecord>(
         ? 'null'
         : props.isPrismicPreview.toString()}
     </div>
-    <div data-testid="prismicPreviewState">{props.prismicPreviewState}</div>
-    <div data-testid="prismicPreviewError">
-      {props.prismicPreviewError?.message}
-    </div>
     <div data-testid="prismicPreviewOriginalData">
       {JSON.stringify(props.prismicPreviewOriginalData)}
     </div>
@@ -150,17 +147,31 @@ test.serial(
 test.serial('merges data if preview data is available', async (t) => {
   const gatsbyContext = createGatsbyContext()
   const pluginOptions = createPluginOptions(t)
+  const config = createRepositoryConfigs(pluginOptions)
 
   const ref = createPreviewRef(pluginOptions.repositoryName)
   cookie.set(prismic.cookie.preview, ref)
 
   const queryResponse = createPrismicAPIQueryResponse()
-  const queryResponseNodes = queryResponse.results.map(
-    (doc) =>
-      nodeHelpers.createNodeFactory(doc.type)(
-        doc,
-      ) as PrismicAPIDocumentNodeInput,
-  )
+  const queryResponseNodes = queryResponse.results.map((doc) => {
+    const node = nodeHelpers.createNodeFactory(doc.type)(
+      doc,
+    ) as PrismicAPIDocumentNodeInput
+
+    return {
+      ...node,
+      url: prismicH.asLink(
+        prismicH.documentToLinkField(doc),
+        config[0].linkResolver,
+      ),
+      alternate_languages: node.alternate_languages.map(
+        (alternativeLanguage) => ({
+          ...alternativeLanguage,
+          raw: alternativeLanguage,
+        }),
+      ),
+    }
+  })
 
   server.use(createAPIQueryMockedRequest(pluginOptions, queryResponse, { ref }))
   server.use(
@@ -176,12 +187,12 @@ test.serial('merges data if preview data is available', async (t) => {
     previewable: { ...queryResponseNodes[0] },
     nonPreviewable: { ...queryResponseNodes[1] },
   }
+  // @ts-expect-error - _previewable doesn't exist on standard PrismicDocument
   staticData.previewable._previewable = queryResponseNodes[0].prismicId
   // Marking this data as "old" and should be replaced during the merge.
   staticData.previewable.uid = 'old'
 
   const pageProps = createPageProps(staticData)
-  const config = createRepositoryConfigs(pluginOptions)
   const tree = createTree(pageProps, config)
 
   // @ts-expect-error - Partial gatsbyContext provided
@@ -210,16 +221,31 @@ test.serial('handles custom types without a data field', async (t) => {
   const gatsbyContext = createGatsbyContext()
   const pluginOptions = createPluginOptions(t)
 
+  const config = createRepositoryConfigs(pluginOptions)
+
   const ref = createPreviewRef(pluginOptions.repositoryName)
   cookie.set(prismic.cookie.preview, ref)
 
   const queryResponse = createPrismicAPIQueryResponse()
-  const queryResponseNodes = queryResponse.results.map(
-    (doc) =>
-      nodeHelpers.createNodeFactory(doc.type)(
-        doc,
-      ) as PrismicAPIDocumentNodeInput,
-  )
+  const queryResponseNodes = queryResponse.results.map((doc) => {
+    const node = nodeHelpers.createNodeFactory(doc.type)(
+      doc,
+    ) as PrismicAPIDocumentNodeInput
+
+    return {
+      ...node,
+      url: prismicH.asLink(
+        prismicH.documentToLinkField(doc),
+        config[0].linkResolver,
+      ),
+      alternate_languages: node.alternate_languages.map(
+        (alternativeLanguage) => ({
+          ...alternativeLanguage,
+          raw: alternativeLanguage,
+        }),
+      ),
+    }
+  })
 
   server.use(createAPIQueryMockedRequest(pluginOptions, queryResponse, { ref }))
   server.use(
@@ -234,12 +260,12 @@ test.serial('handles custom types without a data field', async (t) => {
     previewable: { ...queryResponseNodes[0] },
     nonPreviewable: { ...queryResponseNodes[1] },
   }
+  // @ts-expect-error - _previewable doesn't exist on standard PrismicDocument
   staticData.previewable._previewable = queryResponseNodes[0].prismicId
   // Marking this data as "old" and should be replaced during the merge.
   staticData.previewable.uid = 'old'
 
   const pageProps = createPageProps(staticData)
-  const config = createRepositoryConfigs(pluginOptions)
   const tree = createTree(pageProps, config)
 
   // @ts-expect-error - Partial gatsbyContext provided

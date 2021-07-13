@@ -1,12 +1,13 @@
 import test from 'ava'
 import * as sinon from 'sinon'
+import * as prismicT from '@prismicio/types'
 
 import { createGatsbyContext } from './__testutils__/createGatsbyContext'
 import { createNodeHelpers } from './__testutils__/createNodeHelpers'
 import { createPluginOptions } from './__testutils__/createPluginOptions'
+import { createPrismicAPIDocument } from './__testutils__/createPrismicAPIDocument'
 import { findCreateTypesCall } from './__testutils__/findCreateTypesCall'
 
-import { PrismicFieldType } from '../src'
 import { createSchemaCustomization } from '../src/gatsby-node'
 
 test('includes base fields', async (t) => {
@@ -65,8 +66,14 @@ test('includes UID field if included in the schema', async (t) => {
   pluginOptions.schemas = {
     foo: {
       Main: {
-        uid: { type: PrismicFieldType.UID, config: {} },
-        foo: { type: PrismicFieldType.Text, config: {} },
+        uid: {
+          type: prismicT.CustomTypeModelFieldType.UID,
+          config: { label: 'UID' },
+        },
+        foo: {
+          type: prismicT.CustomTypeModelFieldType.Text,
+          config: { label: 'Foo' },
+        },
       },
     },
   }
@@ -94,7 +101,10 @@ test('includes data fields if the schema contains fields', async (t) => {
   pluginOptions.schemas = {
     foo: {
       Main: {
-        foo: { type: PrismicFieldType.Text, config: {} },
+        foo: {
+          type: prismicT.CustomTypeModelFieldType.Text,
+          config: { label: 'Foo' },
+        },
       },
     },
   }
@@ -126,7 +136,10 @@ test('dataRaw field resolves to raw data object', async (t) => {
   pluginOptions.schemas = {
     foo: {
       Main: {
-        foo: { type: PrismicFieldType.Text, config: {} },
+        foo: {
+          type: prismicT.CustomTypeModelFieldType.Text,
+          config: { label: 'Foo' },
+        },
       },
     },
   }
@@ -165,7 +178,8 @@ test('url field resolves using linkResolver', async (t) => {
     gatsbyContext.actions.createTypes as sinon.SinonStub,
   )
   const nodeHelpers = createNodeHelpers(gatsbyContext, pluginOptions)
-  const node = nodeHelpers.createNodeFactory('foo')({ id: 'id' })
+  const document = createPrismicAPIDocument()
+  const node = nodeHelpers.createNodeFactory(document.type)(document)
   const resolver = call.config.fields.url.resolve
 
   t.true(resolver(node) === 'linkResolver')
@@ -202,36 +216,84 @@ test('data field type includes all data fields', async (t) => {
   pluginOptions.schemas = {
     foo: {
       Main: {
-        uid: { type: PrismicFieldType.UID, config: {} },
-        boolean: { type: PrismicFieldType.Boolean, config: {} },
-        color: { type: PrismicFieldType.Color, config: {} },
-        date: { type: PrismicFieldType.Date, config: {} },
-        embed: { type: PrismicFieldType.Embed, config: {} },
-        geo_point: { type: PrismicFieldType.GeoPoint, config: {} },
-        image: { type: PrismicFieldType.Image, config: {} },
-        link: { type: PrismicFieldType.Link, config: {} },
-        number: { type: PrismicFieldType.Number, config: {} },
-        select: { type: PrismicFieldType.Select, config: {} },
-        structured_text: {
-          type: PrismicFieldType.StructuredText,
-          config: {},
+        uid: {
+          type: prismicT.CustomTypeModelFieldType.UID,
+          config: { label: 'UID' },
         },
-        text: { type: PrismicFieldType.Text, config: {} },
-        timestamp: { type: PrismicFieldType.Timestamp, config: {} },
-        group: {
-          type: PrismicFieldType.Group,
+        boolean: {
+          type: prismicT.CustomTypeModelFieldType.Boolean,
+          config: { label: 'Boolean' },
+        },
+        color: {
+          type: prismicT.CustomTypeModelFieldType.Color,
+          config: { label: 'Color' },
+        },
+        date: {
+          type: prismicT.CustomTypeModelFieldType.Date,
+          config: { label: 'Date' },
+        },
+        embed: {
+          type: prismicT.CustomTypeModelFieldType.Embed,
+          config: { label: 'Embed' },
+        },
+        geo_point: {
+          type: prismicT.CustomTypeModelFieldType.GeoPoint,
+          config: { label: 'GeoPoint' },
+        },
+        image: {
+          type: prismicT.CustomTypeModelFieldType.Image,
+          config: { label: 'Image', constraint: {}, thumbnails: [] },
+        },
+        link: {
+          type: prismicT.CustomTypeModelFieldType.Link,
           config: {
+            label: 'Link',
+          },
+        },
+        number: {
+          type: prismicT.CustomTypeModelFieldType.Number,
+          config: { label: 'Number' },
+        },
+        select: {
+          type: prismicT.CustomTypeModelFieldType.Select,
+          config: { label: 'Select', options: ['Option 1'] },
+        },
+        structured_text: {
+          type: prismicT.CustomTypeModelFieldType.StructuredText,
+          config: { label: 'StructuredText', multi: '' },
+        },
+        text: {
+          type: prismicT.CustomTypeModelFieldType.Text,
+          config: { label: 'Text' },
+        },
+        timestamp: {
+          type: prismicT.CustomTypeModelFieldType.Timestamp,
+          config: { label: 'Timestamp' },
+        },
+        group: {
+          type: prismicT.CustomTypeModelFieldType.Group,
+          config: {
+            label: 'Group',
             fields: {
-              foo: { type: PrismicFieldType.Text, config: {} },
+              foo: {
+                type: prismicT.CustomTypeModelFieldType.Text,
+                config: { label: 'Foo' },
+              },
             },
           },
         },
         slices: {
-          type: PrismicFieldType.Slices,
+          type: prismicT.CustomTypeModelFieldType.Slices,
+          fieldset: 'Slice zone',
           config: {
+            labels: {},
             choices: {
               foo: {
-                type: PrismicFieldType.Slice,
+                type: prismicT.CustomTypeModelSliceType.Slice,
+                icon: '',
+                display: prismicT.CustomTypeModelSliceDisplay.List,
+                fieldset: 'Slice zone',
+                description: '',
                 repeat: {},
                 'non-repeat': {},
               },

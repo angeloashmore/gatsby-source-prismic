@@ -16,7 +16,7 @@ test('uses JSON type', async (t) => {
         unknown: {
           // @ts-expect-error - We purposely want to use a type outside the enum of know types.
           type: 'unknown',
-          config: {},
+          config: { label: 'Unknown' },
         },
       },
     },
@@ -51,7 +51,7 @@ test('prints message about unknown type', async (t) => {
         unknown: {
           // @ts-expect-error - We purposely want to use a type outside the enum of know types.
           type: 'unknown',
-          config: {},
+          config: { label: 'Unknown' },
         },
       },
     },

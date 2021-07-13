@@ -1,6 +1,7 @@
 import * as gqlc from 'graphql-compose'
 import * as gatsbyFs from 'gatsby-source-filesystem'
 import * as imgixGatsby from '@imgix/gatsby/dist/pluginHelpers'
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import * as O from 'fp-ts/Option'
 import * as S from 'fp-ts/Semigroup'
@@ -11,7 +12,7 @@ import { constNull, pipe } from 'fp-ts/function'
 import { sanitizeImageURL } from '../lib/sanitizeImageURL'
 import { stripURLQueryParameters } from '../lib/stripURLParameters'
 
-import { Dependencies, PrismicAPIImageField } from '../types'
+import { Dependencies } from '../types'
 
 /**
  * Returns the URL of an image from the value of an Image field.
@@ -20,7 +21,7 @@ import { Dependencies, PrismicAPIImageField } from '../types'
  *
  * @returns The URL of the image if an image is provided, `null` otherwise.
  */
-const resolveUrl = (source: PrismicAPIImageField): string | null =>
+const resolveUrl = (source: prismicT.ImageField): string | null =>
   source.url
     ? sanitizeImageURL(stripURLQueryParameters(source.url))
     : source.url
@@ -32,7 +33,7 @@ const resolveUrl = (source: PrismicAPIImageField): string | null =>
  *
  * @returns The width of the image if an image is provided, `undefined` otherwise.
  */
-const resolveWidth = (source: PrismicAPIImageField): number | undefined =>
+const resolveWidth = (source: prismicT.ImageField): number | undefined =>
   source.dimensions?.width
 
 /**
@@ -42,7 +43,7 @@ const resolveWidth = (source: PrismicAPIImageField): number | undefined =>
  *
  * @returns The height of the image if an image is provided, `undefined` otherwise.
  */
-const resolveHeight = (source: PrismicAPIImageField): number | undefined =>
+const resolveHeight = (source: prismicT.ImageField): number | undefined =>
   source.dimensions?.height
 
 /**
@@ -68,7 +69,7 @@ const withExistingURLImgixParameters = <
   TArgs extends ImgixGatsbyFieldArgsLike,
 >(
   fieldConfig: gqlc.ObjectTypeComposerFieldConfigAsObjectDefinition<
-    PrismicAPIImageField,
+    prismicT.ImageField,
     TContext,
     TArgs
   >,
@@ -113,7 +114,7 @@ const withExistingURLImgixParameters = <
 export const buildImageBaseFieldConfigMap: RTE.ReaderTaskEither<
   Dependencies,
   never,
-  gqlc.ObjectTypeComposerFieldConfigMapDefinition<PrismicAPIImageField, unknown>
+  gqlc.ObjectTypeComposerFieldConfigMapDefinition<prismicT.ImageField, unknown>
 > = pipe(
   RTE.ask<Dependencies>(),
   RTE.bind('imgixTypes', (scope) =>
@@ -165,7 +166,7 @@ export const buildImageBaseFieldConfigMap: RTE.ReaderTaskEither<
     localFile: {
       type: 'File',
       resolve: async (
-        source: PrismicAPIImageField,
+        source: prismicT.ImageField,
       ): Promise<gatsbyFs.FileSystemNode | null> =>
         source.url
           ? await scope.createRemoteFileNode({

@@ -1,7 +1,7 @@
 import test from 'ava'
 import * as msw from 'msw'
 import * as mswn from 'msw/node'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
 import {
   testPluginOptionsSchema,
   Joi,
@@ -11,6 +11,7 @@ import {
 import kitchenSinkSchemaFixture from './__fixtures__/kitchenSinkSchema.json'
 import { createCustomTypesAPICustomType } from './__testutils__/createCustomTypesAPICustomType'
 import { createCustomTypesAPIMockedRequest } from './__testutils__/createCustomTypesAPIMockedRequest'
+import { isValidAccessToken } from './__testutils__/isValidAccessToken'
 
 import { PluginOptions, PrismicCustomTypeApiResponse } from '../src'
 import { pluginOptionsSchema } from '../src/plugin-options-schema'
@@ -42,16 +43,18 @@ test.serial('passes on valid options', async (t) => {
   }
 
   server.use(
-    msw.rest.get(pluginOptions.apiEndpoint, (req, res, ctx) =>
-      req.url.searchParams.get('access_token') === pluginOptions.accessToken
-        ? res(
-            ctx.json({
-              types: { page: 'Page' },
-              refs: [{ ref: 'master', isMasterRef: true }],
-            }),
-          )
-        : res(ctx.status(401)),
-    ),
+    msw.rest.get(pluginOptions.apiEndpoint, (req, res, ctx) => {
+      if (isValidAccessToken(pluginOptions.accessToken, req)) {
+        return res(
+          ctx.json({
+            types: { page: 'Page' },
+            refs: [{ ref: 'master', isMasterRef: true }],
+          }),
+        )
+      } else {
+        return res(ctx.status(403))
+      }
+    }),
   )
 
   server.use(createCustomTypesAPIMockedRequest(pluginOptions, []))
@@ -121,20 +124,19 @@ test.serial('fails on invalid customTypesApiToken', async (t) => {
     customTypesApiToken: 'customTypesApiToken',
   }
 
-  // Intentionally making a failed 401 response.
+  // Intentionally making a failed 403 response.
   server.use(
     msw.rest.get(
       'https://customtypes.prismic.io/customtypes',
-      (_req, res, ctx) => res(ctx.status(401)),
+      (_req, res, ctx) =>
+        res(ctx.status(403), ctx.json({ message: '[MOCK FORBIDDEN ERROR]' })),
     ),
   )
 
   const res = await testPluginOptionsSchema(pluginOptionsSchema, pluginOptions)
 
   t.false(res.isValid)
-  t.deepEqual(res.errors, [
-    'The Custom Type API could not be accessed. Please check that the customTypesApiToken provided is valid.',
-  ])
+  t.deepEqual(res.errors, ['[MOCK FORBIDDEN ERROR]'])
 })
 
 test.serial('allows only one of qraphQuery or fetchLinks', async (t) => {
@@ -158,7 +160,7 @@ test.serial('checks that all schemas are provided', async (t) => {
     customTypesApiEndpoint: 'https://example.com',
     schemas: { page: kitchenSinkSchemaFixture },
   }
-  const apiEndpoint = prismic.defaultEndpoint(pluginOptions.repositoryName)
+  const apiEndpoint = prismic.getEndpoint(pluginOptions.repositoryName)
 
   server.use(
     msw.rest.get(apiEndpoint, (_req, res, ctx) =>
@@ -187,7 +189,7 @@ test.serial(
       customTypesApiToken: 'customTypesApiToken',
       customTypesApiEndpoint: 'https://example.com',
     }
-    const apiEndpoint = prismic.defaultEndpoint(pluginOptions.repositoryName)
+    const apiEndpoint = prismic.getEndpoint(pluginOptions.repositoryName)
 
     const customType1 = createCustomTypesAPICustomType()
     const customType2 = createCustomTypesAPICustomType()
@@ -249,7 +251,7 @@ test.serial(
         [customTypeInAPI2.id]: customTypeNotInAPI.json,
       },
     }
-    const apiEndpoint = prismic.defaultEndpoint(pluginOptions.repositoryName)
+    const apiEndpoint = prismic.getEndpoint(pluginOptions.repositoryName)
 
     server.use(
       msw.rest.get(apiEndpoint, (_req, res, ctx) =>

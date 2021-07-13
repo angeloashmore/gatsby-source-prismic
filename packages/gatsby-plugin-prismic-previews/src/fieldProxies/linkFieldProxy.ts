@@ -1,5 +1,5 @@
-import * as gatsbyPrismic from 'gatsby-source-prismic'
-import * as PrismicDOM from 'prismic-dom'
+import * as prismicT from '@prismicio/types'
+import * as prismicH from '@prismicio/helpers'
 import * as RE from 'fp-ts/ReaderEither'
 import * as O from 'fp-ts/Option'
 import { pipe } from 'fp-ts/function'
@@ -7,41 +7,23 @@ import { pipe } from 'fp-ts/function'
 import { ProxyDocumentSubtreeEnv } from '../lib/proxyDocumentSubtree'
 import { createGetProxy } from '../lib/createGetProxy'
 
-export const valueRefinement = (
-  value: unknown,
-): value is gatsbyPrismic.PrismicAPILinkField =>
+export const valueRefinement = (value: unknown): value is prismicT.LinkField =>
   typeof value === 'object' && value !== null && 'link_type' in value
 
 export const proxyValue = (
-  fieldValue: gatsbyPrismic.PrismicAPILinkField,
-): RE.ReaderEither<
-  ProxyDocumentSubtreeEnv,
-  Error,
-  gatsbyPrismic.PrismicAPILinkField
-> =>
+  fieldValue: prismicT.LinkField,
+): RE.ReaderEither<ProxyDocumentSubtreeEnv, Error, prismicT.LinkField> =>
   pipe(
     RE.ask<ProxyDocumentSubtreeEnv>(),
     RE.bind('url', (env) =>
-      pipe(
-        fieldValue,
-        O.fromPredicate(
-          (fieldValue) =>
-            fieldValue.link_type === 'Document' &&
-            typeof fieldValue.id === 'string',
-        ),
-        O.map((fieldValue) =>
-          PrismicDOM.Link.url(fieldValue, env.linkResolver),
-        ),
-        O.getOrElseW(() => fieldValue.url),
-        (url) => RE.of(url),
-      ),
+      RE.of(prismicH.asLink(fieldValue, env.linkResolver)),
     ),
     RE.bind('enhancedFieldValue', (env) =>
       RE.of({
         ...fieldValue,
         url: env.url,
         localFile:
-          fieldValue.link_type === 'Media'
+          fieldValue.link_type === prismicT.LinkType.Media
             ? {
                 publicURL: env.url,
               }
@@ -55,15 +37,16 @@ export const proxyValue = (
       // `document` field lazy.
       createGetProxy(env.enhancedFieldValue, (target, prop, receiver) =>
         pipe(
-          fieldValue.id,
+          fieldValue,
           O.fromPredicate(
-            (id): id is string =>
+            (fieldValue): fieldValue is prismicT.FilledLinkToDocumentField =>
               prop === 'document' &&
-              fieldValue.link_type === 'Document' &&
+              fieldValue.link_type === prismicT.LinkType.Document &&
+              'id' in fieldValue &&
               !fieldValue.isBroken &&
-              typeof id === 'string',
+              typeof fieldValue.id === 'string',
           ),
-          O.chain((id) => O.fromNullable(env.getNode(id))),
+          O.chain((fieldValue) => O.fromNullable(env.getNode(fieldValue.id))),
           O.getOrElseW(() => Reflect.get(target, prop, receiver)),
         ),
       ),

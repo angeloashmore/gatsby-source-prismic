@@ -4,6 +4,10 @@ import * as IO from 'fp-ts/IO'
 import * as R from 'fp-ts/Record'
 import { pipe } from 'fp-ts/function'
 
+import { getCookie } from './lib/getCookie'
+import { sprintf } from './lib/sprintf'
+import { ssrPluginOptionsStore } from './lib/setPluginOptionsOnWindow'
+
 import {
   COOKIE_ACCESS_TOKEN_NAME,
   WINDOW_PLUGIN_OPTIONS_KEY,
@@ -12,11 +16,9 @@ import {
 import {
   PluginOptions,
   PrismicAPIDocumentNodeInput,
+  PrismicUnpublishedRepositoryConfigs,
   TypePathsStore,
 } from './types'
-import { getCookie } from './lib/getCookie'
-import { sprintf } from './lib/sprintf'
-import { ssrPluginOptionsStore } from './lib/setPluginOptionsOnWindow'
 
 declare global {
   interface Window {
@@ -66,26 +68,55 @@ export type PrismicContextValue = readonly [
   React.Dispatch<PrismicContextAction>,
 ]
 
+export enum PrismicPreviewState {
+  IDLE = 'IDLE',
+  RESOLVING = 'RESOLVING',
+  RESOLVED = 'RESOLVED',
+  BOOTSTRAPPING = 'BOOTSTRAPPING',
+  ACTIVE = 'ACTIVE',
+  PROMPT_FOR_ACCESS_TOKEN = 'PROMPT_FOR_ACCESS_TOKEN',
+  FAILED = 'FAILED',
+  NOT_PREVIEW = 'NOT_PREVIEW',
+}
+
 export type PrismicContextState = {
+  /** The repository name of the preview session, if active. */
   activeRepositoryName: string | undefined
+  /** The repository name of the preview session, if active. */
+  previewState: PrismicPreviewState
+  /** The error if the preview produced a failure. */
+  error?: Error
+  /** The resolved preview path if entered from a preview resolver page. */
+  resolvedPath?: string
+  /** Determines if all preview content has been fetched and prepared. */
   isBootstrapped: boolean
   /** Record of Prismic document nodes keyed by their `prismicId` field. */
   nodes: Record<string, PrismicAPIDocumentNodeInput>
-  /** Record of document IDs to be added as a root data field keyed by its resolved page URL. */
-  rootNodeMap: Record<string, string>
   /** Record of plugin options keyed by their repository name. */
   pluginOptionsStore: Record<string, PluginOptions>
   /** Record of type paths keyed by their repository name. */
   typePathsStore: Record<string, TypePathsStore>
+  /** Configuration for each repository */
+  repositoryConfigs: PrismicUnpublishedRepositoryConfigs
 }
 
 export enum PrismicContextActionType {
   SetActiveRepositoryName = 'SetActiveRepositoryName',
   SetAccessToken = 'SetAccessToken',
-  CreateRootNodeRelationship = 'CreateRootNodeRelationship',
-  AppendNodes = 'AppendDocuments',
+  AppendNodes = 'AppendNodes',
   AppendTypePaths = 'AppendTypePaths',
+
+  StartResolving = 'StartResolving',
+  Resolved = 'Resolved',
+
+  StartBootstrapping = 'StartBootstrapping',
   Bootstrapped = 'Bootstrapped',
+
+  Failed = 'Failed',
+  NotAPreview = 'NotAPreview',
+  PromptForAccessToken = 'PromptForAccessToken',
+
+  GoToIdle = 'GoToIdle',
 }
 
 export type PrismicContextAction =
@@ -106,11 +137,34 @@ export type PrismicContextAction =
       payload: { repositoryName: string; typePaths: TypePathsStore }
     }
   | {
+      type: PrismicContextActionType.StartResolving
+    }
+  | {
+      type: PrismicContextActionType.Resolved
+      payload: { path: string }
+    }
+  | {
+      type: PrismicContextActionType.StartBootstrapping
+    }
+  | {
       type: PrismicContextActionType.Bootstrapped
     }
   | {
-      type: PrismicContextActionType.CreateRootNodeRelationship
-      payload: { path: string; documentId: string }
+      type: PrismicContextActionType.NotAPreview
+    }
+  | {
+      type: PrismicContextActionType.PromptForAccessToken
+    }
+  | {
+      type: PrismicContextActionType.Failed
+      payload: { error: Error }
+    }
+  | {
+      type: PrismicContextActionType.Failed
+      payload: { error: Error }
+    }
+  | {
+      type: PrismicContextActionType.GoToIdle
     }
 
 export const contextReducer = (
@@ -134,7 +188,7 @@ export const contextReducer = (
 
           return acc
         },
-        state.nodes,
+        { ...state.nodes },
       )
 
       return { ...state, nodes }
@@ -165,20 +219,63 @@ export const contextReducer = (
       }
     }
 
-    case PrismicContextActionType.CreateRootNodeRelationship: {
+    case PrismicContextActionType.StartResolving: {
       return {
         ...state,
-        rootNodeMap: {
-          ...state.rootNodeMap,
-          [action.payload.path]: action.payload.documentId,
-        },
+        previewState: PrismicPreviewState.RESOLVING,
+      }
+    }
+
+    case PrismicContextActionType.Resolved: {
+      return {
+        ...state,
+        previewState: PrismicPreviewState.RESOLVED,
+        resolvedPath: action.payload.path,
+      }
+    }
+
+    case PrismicContextActionType.StartBootstrapping: {
+      return {
+        ...state,
+        previewState: PrismicPreviewState.BOOTSTRAPPING,
+        isBootstrapped: false,
       }
     }
 
     case PrismicContextActionType.Bootstrapped: {
       return {
         ...state,
+        previewState: PrismicPreviewState.ACTIVE,
         isBootstrapped: true,
+      }
+    }
+
+    case PrismicContextActionType.Failed: {
+      return {
+        ...state,
+        previewState: PrismicPreviewState.FAILED,
+        error: action.payload.error,
+      }
+    }
+
+    case PrismicContextActionType.NotAPreview: {
+      return {
+        ...state,
+        previewState: PrismicPreviewState.NOT_PREVIEW,
+      }
+    }
+
+    case PrismicContextActionType.PromptForAccessToken: {
+      return {
+        ...state,
+        previewState: PrismicPreviewState.PROMPT_FOR_ACCESS_TOKEN,
+      }
+    }
+
+    case PrismicContextActionType.GoToIdle: {
+      return {
+        ...state,
+        previewState: PrismicPreviewState.IDLE,
       }
     }
   }
@@ -186,14 +283,17 @@ export const contextReducer = (
 
 const defaultInitialState: PrismicContextState = {
   activeRepositoryName: undefined,
+  previewState: PrismicPreviewState.IDLE,
   isBootstrapped: false,
   nodes: {},
   pluginOptionsStore: {},
   typePathsStore: {},
-  rootNodeMap: {},
+  repositoryConfigs: [],
 }
 
-const createInitialState = (): IO.IO<PrismicContextState> =>
+const createInitialState = (
+  repositoryConfigs = defaultInitialState.repositoryConfigs,
+): IO.IO<PrismicContextState> =>
   pipe(
     typeof window === 'undefined'
       ? ssrPluginOptionsStore
@@ -202,6 +302,7 @@ const createInitialState = (): IO.IO<PrismicContextState> =>
     R.sequence(IO.Applicative),
     IO.map((pluginOptionsStore) => ({
       ...defaultInitialState,
+      repositoryConfigs,
       pluginOptionsStore,
     })),
   )
@@ -214,13 +315,15 @@ const defaultContextValue: PrismicContextValue = [
 export const PrismicContext = React.createContext(defaultContextValue)
 
 export type PrismicProviderProps = {
+  repositoryConfigs?: PrismicUnpublishedRepositoryConfigs
   children?: React.ReactNode
 }
 
 export const PrismicPreviewProvider = ({
+  repositoryConfigs,
   children,
 }: PrismicProviderProps): JSX.Element => {
-  const initialState = createInitialState()()
+  const initialState = createInitialState(repositoryConfigs)()
   const reducerTuple = React.useReducer(contextReducer, initialState)
 
   React.useLayoutEffect(() => {

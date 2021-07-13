@@ -1,4 +1,4 @@
-import * as prismic from 'ts-prismic'
+import * as prismicT from '@prismicio/types'
 
 import {
   PluginOptions,
@@ -8,7 +8,7 @@ import {
 
 export const createWebhookAPIUpdateReleaseDocDeletion = (
   pluginOptions: PluginOptions,
-  documents: prismic.Document[],
+  documents: prismicT.PrismicDocument[],
 ): PrismicWebhookBodyApiUpdate => ({
   type: PrismicWebhookType.APIUpdate,
   masterRef: 'masterRef',

@@ -1,11 +1,11 @@
 import test from 'ava'
 import * as sinon from 'sinon'
+import * as prismicT from '@prismicio/types'
 
 import { createGatsbyContext } from './__testutils__/createGatsbyContext'
 import { createPluginOptions } from './__testutils__/createPluginOptions'
 import kitchenSinkSchema from './__fixtures__/kitchenSinkSchema.json'
 
-import { PrismicSchema, PrismicSchemaTab } from '../src'
 import { createSchemaCustomization } from '../src/gatsby-node'
 
 test('creates type path nodes', async (t) => {
@@ -13,7 +13,7 @@ test('creates type path nodes', async (t) => {
   const pluginOptions = createPluginOptions(t)
 
   pluginOptions.schemas = {
-    kitchen_sink: kitchenSinkSchema as PrismicSchema,
+    kitchen_sink: kitchenSinkSchema as prismicT.CustomTypeModel,
   }
 
   // @ts-expect-error - Partial gatsbyContext provided
@@ -353,11 +353,11 @@ test('field names with dashes are transformed with underscores by default', asyn
   const pluginOptions = createPluginOptions(t)
 
   const dashifiedKitchenSinkSchema = Object.keys(kitchenSinkSchema).reduce(
-    (acc: PrismicSchema, tabName) => {
+    (acc: prismicT.CustomTypeModel, tabName) => {
       const tab = kitchenSinkSchema[tabName as keyof typeof kitchenSinkSchema]
 
       acc[tabName] = Object.keys(tab).reduce(
-        (tabAcc: PrismicSchemaTab, fieldName) => {
+        (tabAcc: prismicT.CustomTypeModelTab, fieldName) => {
           tabAcc[fieldName.replace(/_/g, '-')] =
             tab[fieldName as keyof typeof tab]
 

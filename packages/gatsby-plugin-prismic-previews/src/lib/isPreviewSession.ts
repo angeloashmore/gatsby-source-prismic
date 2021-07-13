@@ -1,12 +1,11 @@
-import * as prismic from 'ts-prismic'
 import * as IOE from 'fp-ts/IOEither'
 import { constTrue, pipe } from 'fp-ts/function'
 
-import { getCookie } from './getCookie'
 import { extractPreviewRefRepositoryName } from './extractPreviewRefRepositoryName'
+import { getPreviewRef } from './getPreviewRef'
 
 export const isPreviewSession = pipe(
-  getCookie(prismic.cookie.preview),
+  getPreviewRef,
   IOE.chain((previewRef) =>
     pipe(
       extractPreviewRefRepositoryName(previewRef),

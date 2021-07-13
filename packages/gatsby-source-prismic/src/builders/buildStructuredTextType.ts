@@ -1,11 +1,12 @@
 import * as gatsby from 'gatsby'
-import * as PrismicDOM from 'prismic-dom'
+import * as prismicH from '@prismicio/helpers'
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import { pipe, identity } from 'fp-ts/function'
 
 import { buildObjectType } from '../lib/buildObjectType'
 
-import { Dependencies, PrismicAPIStructuredTextField } from '../types'
+import { Dependencies } from '../types'
 
 /**
  * Builds a GraphQL Type used by StructuredText fields. The resulting type can
@@ -24,13 +25,12 @@ export const buildStructuredTextType: RTE.ReaderTaskEither<
       fields: {
         text: {
           type: 'String',
-          resolve: (source: PrismicAPIStructuredTextField) =>
-            PrismicDOM.RichText.asText(source),
+          resolve: (source: prismicT.RichTextField) => prismicH.asText(source),
         },
         html: {
           type: 'String',
-          resolve: (source: PrismicAPIStructuredTextField) =>
-            PrismicDOM.RichText.asHtml(
+          resolve: (source: prismicT.RichTextField) =>
+            prismicH.asHTML(
               source,
               deps.pluginOptions.linkResolver,
               deps.pluginOptions.htmlSerializer,

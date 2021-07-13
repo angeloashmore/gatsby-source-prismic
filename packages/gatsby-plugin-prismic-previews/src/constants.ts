@@ -1,5 +1,3 @@
-import chalk from 'chalk'
-
 /**
  * Version of the gatsby-plugin-prismic-preview plugin. This version may be
  * displayed publicly to help debug errors.
@@ -83,11 +81,7 @@ export const WROTE_TYPE_PATHS_TO_FS_MSG = 'Wrote type paths store to %s'
 /**
  * Message used when type paths cannot be found for a repository.
  */
-export const TYPE_PATHS_MISSING_NODE_MSG = `Type paths for this repository could not be found. Check that you have ${chalk.cyan(
-  'gatsby-source-prismic',
-)} configured with the same repository name and type prefix (if used) in ${chalk.cyan(
-  'gatsby-node.js',
-)}.`
+export const TYPE_PATHS_MISSING_NODE_MSG = `Type paths for this repository could not be found. Check that you have gatsby-source-prismic configured with the same repository name and type prefix (if used) in gatsby-config.js.`
 
 /**
  * Message used when serialized type paths cannot be found for a repository.

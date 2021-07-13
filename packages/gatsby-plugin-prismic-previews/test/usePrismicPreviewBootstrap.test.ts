@@ -2,9 +2,11 @@ import test from 'ava'
 import * as msw from 'msw'
 import * as mswNode from 'msw/node'
 import * as gatsbyPrismic from 'gatsby-source-prismic'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
+import * as prismicH from '@prismicio/helpers'
 import * as cookie from 'es-cookie'
-import { renderHook, act } from '@testing-library/react-hooks'
+import * as assert from 'assert'
+import { renderHook, act, cleanup } from '@testing-library/react-hooks'
 import { createNodeHelpers } from 'gatsby-node-helpers'
 import md5 from 'tiny-hashes/md5'
 import browserEnv from 'browser-env'
@@ -15,6 +17,7 @@ import { createPluginOptions } from './__testutils__/createPluginOptions'
 import { createPreviewRef } from './__testutils__/createPreviewRef'
 import { createPrismicAPIQueryResponse } from './__testutils__/createPrismicAPIQueryResponse'
 import { createTypePathsMockedRequest } from './__testutils__/createTypePathsMockedRequest'
+import { isValidAccessToken } from './__testutils__/isValidAccessToken'
 import { polyfillKy } from './__testutils__/polyfillKy'
 import { resolveURL } from './__testutils__/resolveURL'
 
@@ -25,8 +28,10 @@ import {
   usePrismicPreviewContext,
   PluginOptions,
   PrismicRepositoryConfigs,
+  PrismicPreviewState,
 } from '../src'
 import { onClientEntry } from '../src/gatsby-browser'
+import { IS_PROXY } from '../src/constants'
 
 const createRepositoryConfigs = (
   pluginOptions: PluginOptions,
@@ -49,29 +54,19 @@ test.before(() => {
   polyfillKy()
   browserEnv(['window', 'document'])
   server.listen({ onUnhandledRequest: 'error' })
+  window.requestAnimationFrame = function (callback) {
+    return setTimeout(callback, 0)
+  }
   globalThis.__PATH_PREFIX__ = 'https://example.com'
 })
 test.beforeEach(() => {
   clearAllCookies()
 })
+test.afterEach(() => {
+  cleanup()
+})
 test.after(() => {
   server.close()
-})
-
-test.serial('initial state', async (t) => {
-  const gatsbyContext = createGatsbyContext()
-  const pluginOptions = createPluginOptions(t)
-  const config = createRepositoryConfigs(pluginOptions)
-
-  // @ts-expect-error - Partial gatsbyContext provided
-  await onClientEntry(gatsbyContext, pluginOptions)
-  const { result } = renderHook(() => usePrismicPreviewBootstrap(config), {
-    wrapper: PrismicPreviewProvider,
-  })
-  const state = result.current[0]
-
-  t.true(state.state === 'INIT')
-  t.true(state.error === undefined)
 })
 
 test.serial('fails if not a preview session - cookie is not set', async (t) => {
@@ -81,24 +76,30 @@ test.serial('fails if not a preview session - cookie is not set', async (t) => {
 
   // @ts-expect-error - Partial gatsbyContext provided
   await onClientEntry(gatsbyContext, pluginOptions)
-  const { result, waitForNextUpdate } = renderHook(
-    () => usePrismicPreviewBootstrap(config),
+  const { result, waitFor } = renderHook(
+    () => {
+      const context = usePrismicPreviewContext()
+      const bootstrap = usePrismicPreviewBootstrap(config)
+
+      return { bootstrap, context }
+    },
     { wrapper: PrismicPreviewProvider },
   )
 
   act(() => {
-    const [, bootstrapPreview] = result.current
-    bootstrapPreview()
+    result.current.bootstrap()
   })
 
-  await waitForNextUpdate()
-
-  const state = result.current[0]
-
-  t.true(state.state === 'FAILED')
-  t.true(
-    state.error?.message && /not a preview session/i.test(state.error.message),
+  await waitFor(() =>
+    assert.ok(
+      result.current.context[0].previewState ===
+        PrismicPreviewState.NOT_PREVIEW,
+    ),
   )
+
+  const state = result.current.context[0]
+
+  t.is(state.previewState, PrismicPreviewState.NOT_PREVIEW)
 })
 
 test.serial(
@@ -126,7 +127,18 @@ test.serial(
 
       return {
         ...node,
-        url: config[0].linkResolver(doc),
+        url: prismicH.asLink(
+          prismicH.documentToLinkField(doc),
+          config[0].linkResolver,
+        ),
+        alternate_languages: node.alternate_languages.map(
+          (alternativeLanguage) => ({
+            ...alternativeLanguage,
+            raw: alternativeLanguage,
+            // Sorry, this is an implementation detail but we need it pass tests.
+            [IS_PROXY]: true,
+          }),
+        ),
       }
     })
 
@@ -137,7 +149,18 @@ test.serial(
 
       return {
         ...node,
-        url: config[0].linkResolver(doc),
+        url: prismicH.asLink(
+          prismicH.documentToLinkField(doc),
+          config[0].linkResolver,
+        ),
+        alternate_languages: node.alternate_languages.map(
+          (alternativeLanguage) => ({
+            ...alternativeLanguage,
+            raw: alternativeLanguage,
+            // Sorry, this is an implementation detail but we need it pass tests.
+            [IS_PROXY]: true,
+          }),
+        ),
       }
     })
 
@@ -150,8 +173,7 @@ test.serial(
         resolveURL(pluginOptions.apiEndpoint, './documents/search'),
         (req, res, ctx) => {
           if (
-            req.url.searchParams.get('access_token') ===
-              pluginOptions.accessToken &&
+            isValidAccessToken(pluginOptions.accessToken, req) &&
             req.url.searchParams.get('ref') === ref &&
             req.url.searchParams.get('lang') === pluginOptions.lang &&
             req.url.searchParams.get('graphQuery') ===
@@ -159,15 +181,20 @@ test.serial(
             req.url.searchParams.get('pageSize') === '100'
           ) {
             switch (req.url.searchParams.get('page')) {
-              case '1':
-                return res(ctx.json(queryResponsePage1))
               case '2':
                 return res(ctx.json(queryResponsePage2))
               default:
-                return res(ctx.status(401))
+                return res(ctx.json(queryResponsePage1))
             }
           } else {
-            return res(ctx.status(401))
+            return res(
+              ctx.status(403),
+              ctx.json({
+                error: '[MOCK ERROR]',
+                oauth_initiate: 'oauth_initiate',
+                oauth_token: 'oauth_token',
+              }),
+            )
           }
         },
       ),
@@ -182,7 +209,7 @@ test.serial(
 
     // @ts-expect-error - Partial gatsbyContext provided
     await onClientEntry(gatsbyContext, pluginOptions)
-    const { result, waitForValueToChange } = renderHook(
+    const { result, waitFor } = renderHook(
       () => {
         const context = usePrismicPreviewContext()
         const bootstrap = usePrismicPreviewBootstrap(config)
@@ -192,19 +219,22 @@ test.serial(
       { wrapper: PrismicPreviewProvider },
     )
 
-    t.true(result.current.bootstrap[0].state === 'INIT')
-
     act(() => {
-      const [, bootstrapPreview] = result.current.bootstrap
-      bootstrapPreview()
+      result.current.bootstrap()
     })
 
-    await waitForValueToChange(() => result.current.bootstrap[0].state)
-    t.true(result.current.bootstrap[0].state === 'BOOTSTRAPPING')
-
-    await waitForValueToChange(() => result.current.bootstrap[0].state)
-    t.true(result.current.bootstrap[0].state === 'BOOTSTRAPPED')
-    t.true(result.current.bootstrap[0].error === undefined)
+    await waitFor(() =>
+      assert.ok(
+        result.current.context[0].previewState ===
+          PrismicPreviewState.BOOTSTRAPPING,
+      ),
+    )
+    await waitFor(() =>
+      assert.ok(
+        result.current.context[0].previewState === PrismicPreviewState.ACTIVE,
+      ),
+    )
+    t.true(result.current.context[0].error === undefined)
     t.true(result.current.context[0].isBootstrapped)
     t.deepEqual(result.current.context[0].nodes, {
       [queryResponsePage1Nodes[0].prismicId]: {
@@ -227,7 +257,7 @@ test.serial(
   },
 )
 
-test.serial('fails if already bootstrapped', async (t) => {
+test.serial('does nothing if already bootstrapped', async (t) => {
   const gatsbyContext = createGatsbyContext()
   const pluginOptions = createPluginOptions(t)
   const config = createRepositoryConfigs(pluginOptions)
@@ -252,20 +282,17 @@ test.serial('fails if already bootstrapped', async (t) => {
       resolveURL(pluginOptions.apiEndpoint, './documents/search'),
       (req, res, ctx) => {
         if (
-          req.url.searchParams.get('access_token') ===
-            pluginOptions.accessToken &&
+          isValidAccessToken(pluginOptions.accessToken, req) &&
           req.url.searchParams.get('ref') === ref &&
           req.url.searchParams.get('lang') === pluginOptions.lang &&
           req.url.searchParams.get('graphQuery') === pluginOptions.graphQuery &&
           req.url.searchParams.get('pageSize') === '100'
         ) {
           switch (req.url.searchParams.get('page')) {
-            case '1':
-              return res(ctx.json(queryResponsePage1))
             case '2':
               return res(ctx.json(queryResponsePage2))
             default:
-              return res(ctx.status(401))
+              return res(ctx.json(queryResponsePage1))
           }
         } else {
           return res(ctx.status(401))
@@ -275,7 +302,7 @@ test.serial('fails if already bootstrapped', async (t) => {
   )
 
   server.use(
-    createTypePathsMockedRequest('dc161c24076d1389d05e2e60aafa3a3f.json', {
+    createTypePathsMockedRequest('d6c42f6728e21ab594cd600ff04e4913.json', {
       type: gatsbyPrismic.PrismicSpecialType.Document,
       'type.data': gatsbyPrismic.PrismicSpecialType.DocumentData,
     }),
@@ -283,35 +310,37 @@ test.serial('fails if already bootstrapped', async (t) => {
 
   // @ts-expect-error - Partial gatsbyContext provided
   await onClientEntry(gatsbyContext, pluginOptions)
-  const { result, waitForValueToChange } = renderHook(
-    () => usePrismicPreviewBootstrap(config),
+  const { result, waitFor } = renderHook(
+    () => {
+      const context = usePrismicPreviewContext()
+      const bootstrap = usePrismicPreviewBootstrap(config)
+
+      return { bootstrap, context }
+    },
     { wrapper: PrismicPreviewProvider },
   )
 
-  t.true(result.current[0].state === 'INIT')
-
-  // Bootstrap the first time.
   act(() => {
-    const [, bootstrapPreview] = result.current
-    bootstrapPreview()
+    result.current.bootstrap()
   })
 
-  await waitForValueToChange(() => result.current[0].state)
-  t.true(result.current[0].state === 'BOOTSTRAPPING')
-
-  await waitForValueToChange(() => result.current[0].state)
-  t.true(result.current[0].state === 'BOOTSTRAPPED')
-  t.true(result.current[0].error === undefined)
+  await waitFor(() =>
+    assert.ok(
+      result.current.context[0].previewState ===
+        PrismicPreviewState.BOOTSTRAPPING,
+    ),
+  )
+  await waitFor(() =>
+    assert.ok(
+      result.current.context[0].previewState === PrismicPreviewState.ACTIVE,
+    ),
+  )
+  t.is(result.current.context[0].error, undefined)
 
   // Bootstrap the second time.
   act(() => {
-    result.current[1]()
+    result.current.bootstrap()
   })
 
-  await waitForValueToChange(() => result.current[0].state)
-  t.true(result.current[0].state === 'FAILED')
-  t.true(
-    result.current[0].error?.message &&
-      /already been bootstrapped/i.test(result.current[0].error.message),
-  )
+  t.is(result.current.context[0].previewState, PrismicPreviewState.ACTIVE)
 })

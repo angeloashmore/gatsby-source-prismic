@@ -1,9 +1,10 @@
 import * as ava from 'ava'
 import * as sinon from 'sinon'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
 import * as crypto from 'crypto'
 
 import {
+  DEFAULT_CUSTOM_TYPES_API_ENDPOINT,
   DEFAULT_IMGIX_PARAMS,
   DEFAULT_LANG,
   DEFAULT_PLACEHOLDER_IMGIX_PARAMS,
@@ -16,8 +17,9 @@ export const createPluginOptions = (t: ava.ExecutionContext): PluginOptions => {
   return {
     repositoryName,
     accessToken: 'accessToken',
+    apiEndpoint: prismic.getEndpoint(repositoryName),
     customTypesApiToken: 'customTypesApiToken',
-    apiEndpoint: prismic.defaultEndpoint(repositoryName),
+    customTypesApiEndpoint: DEFAULT_CUSTOM_TYPES_API_ENDPOINT,
     typePrefix: 'prefix',
     schemas: {},
     lang: DEFAULT_LANG,

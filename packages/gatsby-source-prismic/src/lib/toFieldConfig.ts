@@ -1,7 +1,8 @@
 import * as gqlc from 'graphql-compose'
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 
-import { Dependencies, PrismicFieldType, PrismicSchemaField } from '../types'
+import { Dependencies } from '../types'
 
 import { buildBooleanFieldConfig } from '../builders/buildBooleanFieldConfig'
 import { buildColorFieldConfig } from '../builders/buildColorFieldConfig'
@@ -32,74 +33,74 @@ import { buildIntegrationFieldConfig } from '../builders/buildIntegrationFieldCo
  */
 export const toFieldConfig = (
   path: string[],
-  schema: PrismicSchemaField,
+  schema: prismicT.CustomTypeModelField,
 ): RTE.ReaderTaskEither<
   Dependencies,
   never,
   gqlc.ObjectTypeComposerFieldConfigDefinition<unknown, unknown>
 > => {
   switch (schema.type) {
-    case PrismicFieldType.Boolean: {
+    case prismicT.CustomTypeModelFieldType.Boolean: {
       return buildBooleanFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.Color: {
+    case prismicT.CustomTypeModelFieldType.Color: {
       return buildColorFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.Date: {
+    case prismicT.CustomTypeModelFieldType.Date: {
       return buildDateFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.Embed: {
+    case prismicT.CustomTypeModelFieldType.Embed: {
       return buildEmbedFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.GeoPoint: {
+    case prismicT.CustomTypeModelFieldType.GeoPoint: {
       return buildGeoPointFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.Group: {
+    case prismicT.CustomTypeModelFieldType.Group: {
       return buildGroupFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.Image: {
+    case prismicT.CustomTypeModelFieldType.Image: {
       return buildImageFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.IntegrationFields: {
+    case prismicT.CustomTypeModelFieldType.IntegrationFields: {
       return buildIntegrationFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.Link: {
+    case prismicT.CustomTypeModelFieldType.Link: {
       return buildLinkFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.Number: {
+    case prismicT.CustomTypeModelFieldType.Number: {
       return buildNumberFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.Select: {
+    case prismicT.CustomTypeModelFieldType.Select: {
       return buildSelectFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.Slices: {
+    case prismicT.CustomTypeModelFieldType.Slices: {
       return buildSlicesFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.StructuredText: {
+    case prismicT.CustomTypeModelFieldType.StructuredText: {
       return buildStructuredTextFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.Text: {
+    case prismicT.CustomTypeModelFieldType.Text: {
       return buildTextFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.Timestamp: {
+    case prismicT.CustomTypeModelFieldType.Timestamp: {
       return buildTimestampFieldConfig(path, schema)
     }
 
-    case PrismicFieldType.UID: {
+    case prismicT.CustomTypeModelFieldType.UID: {
       return buildUIDFieldConfig(path, schema)
     }
 

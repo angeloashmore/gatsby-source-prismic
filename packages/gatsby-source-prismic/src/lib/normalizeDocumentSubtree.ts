@@ -1,3 +1,4 @@
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import * as R from 'fp-ts/Record'
 import * as O from 'fp-ts/Option'
@@ -5,14 +6,7 @@ import * as A from 'fp-ts/Array'
 import { pipe } from 'fp-ts/function'
 import { Stringable } from 'gatsby-node-helpers'
 
-import {
-  Dependencies,
-  PrismicAPIEmbedField,
-  PrismicAPISliceField,
-  PrismicFieldType,
-  PrismicSpecialType,
-  UnknownRecord,
-} from '../types'
+import { Dependencies, PrismicSpecialType, UnknownRecord } from '../types'
 
 import { getTypePath } from './getTypePath'
 import { createNodeOfType } from './createNodeOfType'
@@ -46,7 +40,7 @@ const unknownRecordArrayValueRefinement = (
  *
  * @returns `true` if the value is an Embed field, `false` otherwise.
  */
-const embedValueRefinement = (value: unknown): value is PrismicAPIEmbedField =>
+const embedValueRefinement = (value: unknown): value is prismicT.EmbedField =>
   unknownRecordRefinement(value) && 'embed_url' in value
 
 /**
@@ -56,7 +50,7 @@ const embedValueRefinement = (value: unknown): value is PrismicAPIEmbedField =>
  *
  * @returns `true` if the value is a Slice, `false` otherwise.
  */
-const sliceValueRefinement = (value: unknown): value is PrismicAPISliceField =>
+const sliceValueRefinement = (value: unknown): value is prismicT.Slice =>
   unknownRecordRefinement(value) && 'slice_type' in value
 
 /**
@@ -66,9 +60,7 @@ const sliceValueRefinement = (value: unknown): value is PrismicAPISliceField =>
  *
  * @returns `true` if the value is a Slice Zone, `false` otherwise.
  */
-const slicesValueRefinement = (
-  value: unknown,
-): value is PrismicAPISliceField[] =>
+const slicesValueRefinement = (value: unknown): value is prismicT.SliceZone =>
   Array.isArray(value) && value.every(sliceValueRefinement)
 
 /**
@@ -144,7 +136,7 @@ export const normalizeDocumentSubtree = (
           )
         }
 
-        case PrismicFieldType.Group: {
+        case prismicT.CustomTypeModelFieldType.Group: {
           return pipe(
             value,
             RTE.fromPredicate(
@@ -159,7 +151,7 @@ export const normalizeDocumentSubtree = (
           )
         }
 
-        case PrismicFieldType.Slices: {
+        case prismicT.CustomTypeModelFieldType.Slices: {
           return pipe(
             value,
             RTE.fromPredicate(
@@ -178,7 +170,7 @@ export const normalizeDocumentSubtree = (
           )
         }
 
-        case PrismicFieldType.Slice: {
+        case prismicT.CustomTypeModelSliceType.Slice: {
           return pipe(
             value,
             RTE.fromPredicate(
@@ -212,7 +204,7 @@ export const normalizeDocumentSubtree = (
           )
         }
 
-        case PrismicFieldType.Embed: {
+        case prismicT.CustomTypeModelFieldType.Embed: {
           return pipe(
             value,
             RTE.fromPredicate(
@@ -245,7 +237,7 @@ export const normalizeDocumentSubtree = (
           )
         }
 
-        case PrismicFieldType.IntegrationFields: {
+        case prismicT.CustomTypeModelFieldType.IntegrationFields: {
           return pipe(
             value,
             RTE.fromPredicate(
@@ -272,18 +264,18 @@ export const normalizeDocumentSubtree = (
           )
         }
 
-        case PrismicFieldType.Boolean:
-        case PrismicFieldType.Color:
-        case PrismicFieldType.Date:
-        case PrismicFieldType.GeoPoint:
-        case PrismicFieldType.Image:
-        case PrismicFieldType.Link:
-        case PrismicFieldType.Number:
-        case PrismicFieldType.Select:
-        case PrismicFieldType.StructuredText:
-        case PrismicFieldType.Text:
-        case PrismicFieldType.Timestamp:
-        case PrismicFieldType.UID:
+        case prismicT.CustomTypeModelFieldType.Boolean:
+        case prismicT.CustomTypeModelFieldType.Color:
+        case prismicT.CustomTypeModelFieldType.Date:
+        case prismicT.CustomTypeModelFieldType.GeoPoint:
+        case prismicT.CustomTypeModelFieldType.Image:
+        case prismicT.CustomTypeModelFieldType.Link:
+        case prismicT.CustomTypeModelFieldType.Number:
+        case prismicT.CustomTypeModelFieldType.Select:
+        case prismicT.CustomTypeModelFieldType.StructuredText:
+        case prismicT.CustomTypeModelFieldType.Text:
+        case prismicT.CustomTypeModelFieldType.Timestamp:
+        case prismicT.CustomTypeModelFieldType.UID:
         case PrismicSpecialType.Unknown:
         default: {
           return RTE.throwError(

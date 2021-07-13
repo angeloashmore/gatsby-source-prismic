@@ -1,5 +1,5 @@
-import * as gatsbyPrismic from 'gatsby-source-prismic'
-import * as PrismicDOM from 'prismic-dom'
+import * as prismicT from '@prismicio/types'
+import * as prismicH from '@prismicio/helpers'
 import * as RE from 'fp-ts/ReaderEither'
 import { pipe } from 'fp-ts/function'
 
@@ -7,32 +7,26 @@ import { ProxyDocumentSubtreeEnv } from '../lib/proxyDocumentSubtree'
 
 export const valueRefinement = (
   value: unknown,
-): value is gatsbyPrismic.PrismicAPIStructuredTextField =>
+): value is prismicT.RichTextField =>
   // We must be very loose here. An image element, for example, does not contain
   // a `text` property.
   Array.isArray(value) && value.every((element) => 'type' in element)
 
-interface StructuredTextProxyValue {
+export interface StructuredTextProxyValue {
   html: string
   text: string
-  raw: gatsbyPrismic.PrismicAPIStructuredTextField
+  raw: prismicT.RichTextField
 }
 
 export const proxyValue = (
-  fieldValue: gatsbyPrismic.PrismicAPIStructuredTextField,
+  fieldValue: prismicT.RichTextField,
 ): RE.ReaderEither<ProxyDocumentSubtreeEnv, Error, StructuredTextProxyValue> =>
   pipe(
     RE.ask<ProxyDocumentSubtreeEnv>(),
     RE.bind('html', (env) =>
-      RE.of(
-        PrismicDOM.RichText.asHtml(
-          fieldValue,
-          env.linkResolver,
-          env.htmlSerializer,
-        ),
-      ),
+      RE.of(prismicH.asHTML(fieldValue, env.linkResolver, env.htmlSerializer)),
     ),
-    RE.bind('text', () => RE.of(PrismicDOM.RichText.asText(fieldValue))),
+    RE.bind('text', () => RE.of(prismicH.asText(fieldValue))),
     RE.map((env) => ({
       html: env.html,
       text: env.text,

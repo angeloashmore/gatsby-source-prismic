@@ -1,7 +1,7 @@
 import test from 'ava'
 import * as sinon from 'sinon'
 import * as mswn from 'msw/node'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
 
 import { createAPIQueryMockedRequest } from './__testutils__/createAPIQueryMockedRequest'
 import { createAPIRepositoryMockedRequest } from './__testutils__/createAPIRepositoryMockedRequest'

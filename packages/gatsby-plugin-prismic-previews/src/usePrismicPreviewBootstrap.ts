@@ -1,24 +1,22 @@
 import * as React from 'react'
-import * as prismic from 'ts-prismic'
-import * as RTE from 'fp-ts/ReaderTaskEither'
+import * as gatsbyPrismic from 'gatsby-source-prismic'
+import * as prismic from '@prismicio/client'
+import * as prismicT from '@prismicio/types'
 import * as RE from 'fp-ts/ReaderEither'
-import * as TE from 'fp-ts/TaskEither'
-import * as T from 'fp-ts/Task'
-import * as IO from 'fp-ts/IO'
+import * as Re from 'fp-ts/Reader'
 import * as A from 'fp-ts/Array'
-import * as R from 'fp-ts/Record'
-import { constVoid, pipe } from 'fp-ts/function'
+import * as E from 'fp-ts/Either'
+import * as O from 'fp-ts/Option'
+import { pipe } from 'fp-ts/function'
 import { createNodeHelpers } from 'gatsby-node-helpers'
-import { GLOBAL_TYPE_PREFIX, PrismicTypePathType } from 'gatsby-source-prismic'
 import md5 from 'tiny-hashes/md5'
 
 import { defaultFieldTransformer } from './lib/defaultFieldTransformer'
 import { extractPreviewRefRepositoryName } from './lib/extractPreviewRefRepositoryName'
 import { fetchTypePaths } from './lib/fetchTypePaths'
-import { getCookie } from './lib/getCookie'
+import { getPreviewRef } from './lib/getPreviewRef'
 import { isPreviewSession } from './lib/isPreviewSession'
 import { proxyDocumentNodeInput } from './lib/proxyDocumentNodeInput'
-import { queryAllDocuments } from './lib/queryAllDocuments'
 import { serializePath } from './lib/serializePath'
 import { sprintf } from './lib/sprintf'
 
@@ -26,241 +24,19 @@ import {
   Mutable,
   PrismicAPIDocumentNodeInput,
   PrismicRepositoryConfigs,
-  TypePathsStore,
-  UnknownRecord,
 } from './types'
-import { PrismicContextActionType, PrismicContextState } from './context'
-import { usePrismicPreviewContext } from './usePrismicPreviewContext'
 import {
-  MISSING_REPOSITORY_CONFIG_MSG,
   MISSING_PLUGIN_OPTIONS_MSG,
+  MISSING_REPOSITORY_CONFIG_MSG,
 } from './constants'
+import {
+  PrismicContextActionType,
+  PrismicContextState,
+  PrismicPreviewState,
+} from './context'
+import { usePrismicPreviewContext } from './usePrismicPreviewContext'
 
 export type UsePrismicPreviewBootstrapFn = () => void
-
-export interface UsePrismicPreviewBootstrapState {
-  state: 'INIT' | 'BOOTSTRAPPING' | 'BOOTSTRAPPED' | 'FAILED'
-  error?: Error
-}
-
-enum UsePrismicPreviewBootstrapActionType {
-  BeginBootstrapping = 'BeginBootstrapping',
-  Bootstrapped = 'Bootstrapped',
-  Fail = 'Fail',
-}
-
-type UsePrismicPreviewBootstrapAction =
-  | {
-      type: UsePrismicPreviewBootstrapActionType.BeginBootstrapping
-    }
-  | {
-      type: UsePrismicPreviewBootstrapActionType.Bootstrapped
-    }
-  | {
-      type: UsePrismicPreviewBootstrapActionType.Fail
-      payload: Error
-    }
-
-const buildInitialLocalState = (
-  isBootstrapped: boolean,
-): UsePrismicPreviewBootstrapState => ({
-  state: isBootstrapped ? 'BOOTSTRAPPED' : 'INIT',
-})
-
-const localReducer = (
-  _: UsePrismicPreviewBootstrapState,
-  action: UsePrismicPreviewBootstrapAction,
-): UsePrismicPreviewBootstrapState => {
-  switch (action.type) {
-    case UsePrismicPreviewBootstrapActionType.BeginBootstrapping: {
-      return {
-        state: 'BOOTSTRAPPING',
-      }
-    }
-
-    case UsePrismicPreviewBootstrapActionType.Bootstrapped: {
-      return {
-        state: 'BOOTSTRAPPED',
-      }
-    }
-
-    case UsePrismicPreviewBootstrapActionType.Fail: {
-      return {
-        state: 'FAILED',
-        error: action.payload,
-      }
-    }
-  }
-}
-
-interface UsePrismicPreviewBootstrapProgramEnv {
-  isBootstrapped: boolean
-  setActiveRepositoryName(repositoryName: string): IO.IO<void>
-  beginBootstrapping: IO.IO<void>
-  bootstrapped: IO.IO<void>
-  appendNodes(nodes: unknown[]): IO.IO<void>
-  appendTypePaths(
-    repositoryName: string,
-    typePaths: TypePathsStore,
-  ): IO.IO<void>
-
-  createNodeId(input: string): string
-  createContentDigest(input: string | UnknownRecord): string
-
-  pluginOptionsStore: PrismicContextState['pluginOptionsStore']
-  repositoryConfigs: PrismicRepositoryConfigs
-
-  // Proxify node env
-  getNode(id: string): PrismicAPIDocumentNodeInput | undefined
-  getTypePath(
-    repositoryName: string,
-    path: string[],
-  ): PrismicTypePathType | undefined
-}
-
-const previewBootstrapProgram: RTE.ReaderTaskEither<
-  UsePrismicPreviewBootstrapProgramEnv,
-  Error,
-  void
-> = pipe(
-  RTE.ask<UsePrismicPreviewBootstrapProgramEnv>(),
-
-  // Only continue if this is a preview session.
-  RTE.chainFirst(() => RTE.fromIOEither(isPreviewSession)),
-
-  RTE.bindW('previewRef', () =>
-    pipe(
-      RTE.fromIOEither(getCookie(prismic.cookie.preview)),
-      RTE.mapLeft(() => new Error('preview cookie not present')),
-    ),
-  ),
-
-  RTE.bindW('repositoryName', (env) =>
-    pipe(
-      env.previewRef,
-      extractPreviewRefRepositoryName,
-      RTE.fromOption(() => new Error('Invalid preview ref')),
-    ),
-  ),
-
-  RTE.chainFirst((env) =>
-    RTE.fromIO(env.setActiveRepositoryName(env.repositoryName)),
-  ),
-
-  RTE.bindW('repositoryConfig', (env) =>
-    pipe(
-      env.repositoryConfigs,
-      A.findFirst((config) => config.repositoryName === env.repositoryName),
-      RTE.fromOption(
-        () =>
-          new Error(
-            sprintf(
-              MISSING_REPOSITORY_CONFIG_MSG,
-              env.repositoryName,
-              'withPrismicPreview and withPrismicUnpublishedPreview',
-            ),
-          ),
-      ),
-    ),
-  ),
-
-  RTE.bindW('repositoryPluginOptions', (env) =>
-    pipe(
-      env.pluginOptionsStore,
-      R.lookup(env.repositoryName),
-      RTE.fromOption(
-        () =>
-          new Error(sprintf(MISSING_PLUGIN_OPTIONS_MSG, env.repositoryName)),
-      ),
-    ),
-  ),
-
-  RTE.bind('nodeHelpers', (env) =>
-    RTE.right(
-      createNodeHelpers({
-        typePrefix: [GLOBAL_TYPE_PREFIX, env.repositoryPluginOptions.typePrefix]
-          .filter(Boolean)
-          .join(' '),
-        fieldPrefix: GLOBAL_TYPE_PREFIX,
-        createNodeId: env.createNodeId,
-        createContentDigest: env.createContentDigest,
-      }),
-    ),
-  ),
-
-  // TODO: wrap these errors in the reporter format
-  // Only bootstrap once.
-  RTE.chainW(
-    RTE.fromPredicate(
-      (env) => !env.isBootstrapped,
-      () =>
-        new Error(
-          `The Prismic preview has already been bootstrapped and cannot happen again.`,
-        ),
-    ),
-  ),
-
-  // Start bootstrap.
-  RTE.chainFirst((env) => RTE.fromIO(env.beginBootstrapping)),
-
-  RTE.bindW(
-    'typePaths',
-    (env) => () => fetchTypePaths({ repositoryName: env.repositoryName }),
-  ),
-  RTE.chainFirst((env) =>
-    RTE.fromIO(env.appendTypePaths(env.repositoryName, env.typePaths)),
-  ),
-
-  RTE.bindW('nodes', (env) =>
-    pipe(
-      () =>
-        queryAllDocuments({
-          apiEndpoint: env.repositoryPluginOptions.apiEndpoint,
-          lang: env.repositoryPluginOptions.lang,
-          fetchLinks: env.repositoryPluginOptions.fetchLinks,
-          graphQuery: env.repositoryPluginOptions.graphQuery,
-          accessToken: env.repositoryPluginOptions.accessToken,
-        }),
-      RTE.map(
-        A.map(
-          (doc) =>
-            env.nodeHelpers.createNodeFactory(doc.type)(
-              doc,
-            ) as PrismicAPIDocumentNodeInput,
-        ),
-      ),
-      RTE.map(
-        A.map(
-          (doc) => () =>
-            proxyDocumentNodeInput(doc)({
-              createContentDigest: env.createContentDigest,
-              nodeHelpers: env.nodeHelpers,
-              linkResolver: env.repositoryConfig.linkResolver,
-              getTypePath: (path) => env.getTypePath(env.repositoryName, path),
-              getNode: env.getNode,
-              imageImgixParams: env.repositoryPluginOptions.imageImgixParams,
-              imagePlaceholderImgixParams:
-                env.repositoryPluginOptions.imagePlaceholderImgixParams,
-              htmlSerializer: env.repositoryConfig.htmlSerializer,
-              transformFieldName:
-                env.repositoryConfig.transformFieldName ??
-                defaultFieldTransformer,
-            }),
-        ),
-      ),
-      RTE.map(RE.sequenceArray),
-      RTE.chainW(RTE.fromReaderEither),
-    ),
-  ),
-  RTE.chainFirst((env) =>
-    RTE.fromIO(env.appendNodes(env.nodes as Mutable<typeof env.nodes>)),
-  ),
-
-  // End bootstrap.
-  RTE.chainFirst((env) => RTE.fromIO(env.bootstrapped)),
-
-  RTE.map(constVoid),
-)
 
 /**
  * React hook that bootstraps a Prismic preview session. When the returned
@@ -271,22 +47,17 @@ const previewBootstrapProgram: RTE.ReaderTaskEither<
  * @param repositoryConfigs Configuration that determines how the bootstrap function runs.
  */
 export const usePrismicPreviewBootstrap = (
-  repositoryConfigs: PrismicRepositoryConfigs,
-): readonly [UsePrismicPreviewBootstrapState, UsePrismicPreviewBootstrapFn] => {
+  repositoryConfigs: PrismicRepositoryConfigs = [],
+): UsePrismicPreviewBootstrapFn => {
+  const [contextState, contextDispatch] = usePrismicPreviewContext()
+
   // A ref to the latest contextState is setup specifically for getTypePath
   // which is populated during the program's runtime. Since
   // contextState.typePaths is empty at all times during the program's run due
   // to closures, we need to opt out of the closure and use a ref.
   //
   // If you have a better idea how to handle this, please share!
-  const contextStateRef = React.useRef<PrismicContextState>()
-
-  const [contextState, contextDispatch] = usePrismicPreviewContext()
-  const [localState, localDispatch] = React.useReducer(
-    localReducer,
-    contextState.isBootstrapped,
-    buildInitialLocalState,
-  )
+  const contextStateRef = React.useRef<PrismicContextState>(contextState)
 
   // We need to update the ref anytime contextState changes to ensure lazy
   // functions get the latest data.
@@ -294,76 +65,200 @@ export const usePrismicPreviewBootstrap = (
     contextStateRef.current = contextState
   }, [contextState])
 
-  const bootstrapPreview = React.useCallback(async (): Promise<void> => {
-    await pipe(
-      previewBootstrapProgram({
-        setActiveRepositoryName: (repositoryName: string) => () =>
-          contextDispatch({
-            type: PrismicContextActionType.SetActiveRepositoryName,
-            payload: { repositoryName },
-          }),
-        beginBootstrapping: () =>
-          localDispatch({
-            type: UsePrismicPreviewBootstrapActionType.BeginBootstrapping,
-          }),
-        // TODO: Remove local bootstrapped state? We already have it in context.
-        bootstrapped: () => {
-          contextDispatch({
-            type: PrismicContextActionType.Bootstrapped,
-          })
-          localDispatch({
-            type: UsePrismicPreviewBootstrapActionType.Bootstrapped,
-          })
-        },
-        appendNodes: (nodes: unknown[]) => () =>
-          contextDispatch({
-            type: PrismicContextActionType.AppendNodes,
-            payload: { nodes },
-          }),
-        appendTypePaths:
-          (repositoryName: string, typePaths: TypePathsStore) => () =>
-            contextDispatch({
-              type: PrismicContextActionType.AppendTypePaths,
-              payload: { repositoryName, typePaths },
-            }),
-        isBootstrapped: contextState.isBootstrapped,
-        pluginOptionsStore: contextState.pluginOptionsStore,
-        repositoryConfigs,
-        // We use the ref to ensure we can access nodes populated during the
-        // same run that the population occurs. This means we don't need to wait
-        // for the next render to access nodes.
-        getNode: (id: string) => contextStateRef.current?.nodes[id],
-        // We use the ref to ensure we can access type paths populated during the
-        // same run that the population occurs. This means we don't need to wait
-        // for the next render to access type paths.
-        getTypePath: (repositoryName: string, path: string[]) =>
-          contextStateRef.current?.typePathsStore[repositoryName][
-            serializePath(path)
-          ],
-        createNodeId: (input: string) => md5(input),
-        createContentDigest: (input: string | UnknownRecord) =>
-          md5(JSON.stringify(input)),
-      }),
-      TE.fold(
-        (error) =>
-          T.fromIO(() =>
-            localDispatch({
-              type: UsePrismicPreviewBootstrapActionType.Fail,
-              payload: error,
-            }),
+  return React.useCallback(async (): Promise<void> => {
+    if (
+      (contextState.previewState !== PrismicPreviewState.IDLE &&
+        contextState.previewState !== PrismicPreviewState.RESOLVED) ||
+      contextState.isBootstrapped
+    ) {
+      // No op. Bootstrapping should only happen once.
+      return
+    }
+
+    if (E.isLeft(isPreviewSession())) {
+      return contextDispatch({
+        type: PrismicContextActionType.NotAPreview,
+      })
+    }
+
+    const previewRef = getPreviewRef()
+    if (E.isLeft(previewRef)) {
+      return contextDispatch({
+        type: PrismicContextActionType.Failed,
+        payload: { error: previewRef.left },
+      })
+    }
+
+    const repositoryName = extractPreviewRefRepositoryName(previewRef.right)
+    if (O.isNone(repositoryName)) {
+      return contextDispatch({
+        type: PrismicContextActionType.Failed,
+        payload: { error: new Error('Invalid preview ref') },
+      })
+    }
+
+    contextDispatch({
+      type: PrismicContextActionType.SetActiveRepositoryName,
+      payload: { repositoryName: repositoryName.value },
+    })
+
+    // TODO: Deeply merge repository configs
+    const resolvedRepositoryConfigs = [
+      ...repositoryConfigs,
+      ...contextState.repositoryConfigs,
+    ]
+    const repositoryConfig = resolvedRepositoryConfigs.find(
+      (config) => config.repositoryName === repositoryName.value,
+    )
+    if (!repositoryConfig) {
+      return contextDispatch({
+        type: PrismicContextActionType.Failed,
+        payload: {
+          error: new Error(
+            sprintf(
+              MISSING_REPOSITORY_CONFIG_MSG,
+              repositoryName.value,
+              'withPrismicPreview and withPrismicUnpublishedPreview',
+            ),
           ),
-        () => T.of(void 0),
-      ),
-    )()
+        },
+      })
+    }
+
+    const repositoryPluginOptions =
+      contextState.pluginOptionsStore[repositoryName.value]
+    if (!repositoryPluginOptions) {
+      return contextDispatch({
+        type: PrismicContextActionType.Failed,
+        payload: {
+          error: new Error(
+            sprintf(MISSING_PLUGIN_OPTIONS_MSG, repositoryName.value),
+          ),
+        },
+      })
+    }
+
+    const createNodeId = (input: string): string => md5(input)
+    const createContentDigest = <T>(input: T): string =>
+      md5(JSON.stringify(input))
+    const nodeHelpers = createNodeHelpers({
+      typePrefix: [
+        gatsbyPrismic.GLOBAL_TYPE_PREFIX,
+        repositoryPluginOptions.typePrefix,
+      ]
+        .filter(Boolean)
+        .join(' '),
+      fieldPrefix: gatsbyPrismic.GLOBAL_TYPE_PREFIX,
+      createNodeId,
+      createContentDigest,
+    })
+
+    // Begin bootstrap phase.
+    contextDispatch({
+      type: PrismicContextActionType.StartBootstrapping,
+    })
+
+    const typePaths = await fetchTypePaths({
+      repositoryName: repositoryName.value,
+    })()
+    if (E.isLeft(typePaths)) {
+      return contextDispatch({
+        type: PrismicContextActionType.Failed,
+        payload: { error: typePaths.left },
+      })
+    }
+
+    contextDispatch({
+      type: PrismicContextActionType.AppendTypePaths,
+      payload: {
+        repositoryName: repositoryName.value,
+        typePaths: typePaths.right,
+      },
+    })
+
+    const endpoint =
+      repositoryPluginOptions.apiEndpoint ??
+      prismic.getEndpoint(repositoryName.value)
+    const client = prismic.createClient(endpoint, {
+      accessToken: repositoryPluginOptions.accessToken,
+      defaultParams: {
+        lang: repositoryPluginOptions.lang,
+        fetchLinks: repositoryPluginOptions.fetchLinks,
+        graphQuery: repositoryPluginOptions.graphQuery,
+      },
+    })
+    client.enableAutoPreviews()
+
+    let allDocuments: prismicT.PrismicDocument[]
+    try {
+      allDocuments = await client.getAll()
+    } catch (error) {
+      if (
+        error instanceof prismic.ForbiddenError &&
+        repositoryPluginOptions.promptForAccessToken
+      ) {
+        return contextDispatch({
+          type: PrismicContextActionType.PromptForAccessToken,
+        })
+      } else {
+        return contextDispatch({
+          type: PrismicContextActionType.Failed,
+          payload: { error },
+        })
+      }
+    }
+
+    const allNodes = allDocuments.map(
+      (doc) =>
+        nodeHelpers.createNodeFactory(doc.type)(
+          doc,
+        ) as PrismicAPIDocumentNodeInput,
+    )
+
+    const allProxiedNodesOrError = pipe(
+      allNodes,
+      A.map((nodeInput) => proxyDocumentNodeInput(nodeInput)),
+      RE.sequenceArray,
+      RE.getOrElseW((error) => Re.of(error)),
+    )({
+      createContentDigest,
+      nodeHelpers,
+      linkResolver: repositoryConfig.linkResolver,
+      getTypePath: (path) =>
+        contextStateRef.current.typePathsStore[repositoryName.value][
+          serializePath(path)
+        ],
+      getNode: (id) => contextStateRef.current.nodes[id],
+      imageImgixParams: repositoryPluginOptions.imageImgixParams,
+      imagePlaceholderImgixParams:
+        repositoryPluginOptions.imagePlaceholderImgixParams,
+      htmlSerializer: repositoryConfig.htmlSerializer,
+      transformFieldName:
+        repositoryConfig.transformFieldName ?? defaultFieldTransformer,
+    })
+    if (allProxiedNodesOrError instanceof Error) {
+      return contextDispatch({
+        type: PrismicContextActionType.Failed,
+        payload: { error: allProxiedNodesOrError },
+      })
+    }
+
+    contextDispatch({
+      type: PrismicContextActionType.AppendNodes,
+      payload: {
+        nodes: allProxiedNodesOrError as Mutable<typeof allProxiedNodesOrError>,
+      },
+    })
+
+    contextDispatch({
+      type: PrismicContextActionType.Bootstrapped,
+    })
   }, [
     repositoryConfigs,
+    contextState.repositoryConfigs,
     contextState.pluginOptionsStore,
+    contextState.previewState,
     contextState.isBootstrapped,
     contextDispatch,
   ])
-
-  return React.useMemo(
-    () => [localState, bootstrapPreview] as const,
-    [localState, bootstrapPreview],
-  )
 }

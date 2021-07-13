@@ -1,10 +1,11 @@
 import * as gatsby from 'gatsby'
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import { pipe, identity } from 'fp-ts/function'
 
 import { buildObjectType } from '../lib/buildObjectType'
 
-import { Dependencies, PrismicAPIAlternateLanguageField } from '../types'
+import { Dependencies, IterableElement } from '../types'
 
 /**
  * Builds a GraphQL Type used by a document's `alternate_language` field. The
@@ -27,8 +28,11 @@ export const buildAlternateLanguageType: RTE.ReaderTaskEither<
         type: 'String',
         document: {
           type: deps.nodeHelpers.createTypeName('AllDocumentTypes'),
-          resolve: (source: PrismicAPIAlternateLanguageField): string | null =>
-            deps.nodeHelpers.createNodeId(source.id),
+          resolve: (
+            source: IterableElement<
+              prismicT.PrismicDocument['alternate_languages']
+            >,
+          ): string | null => deps.nodeHelpers.createNodeId(source.id),
           extensions: { link: {} },
         },
         raw: { type: 'JSON', resolve: identity },

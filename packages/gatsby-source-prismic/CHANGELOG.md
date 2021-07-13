@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [4.0.0-beta.22](https://github.com/angeloashmore/gatsby-source-prismic/compare/v4.0.0-beta.21...v4.0.0-beta.22) (2021-07-13)
+
+
+### Bug Fixes
+
+* update all dependencies ([66f71b5](https://github.com/angeloashmore/gatsby-source-prismic/commit/66f71b5fb44e4443a1cce6de884ca6627747dab8))
+
+
+
+
+
 # [4.0.0-beta.21](https://github.com/angeloashmore/gatsby-source-prismic/compare/v4.0.0-beta.20...v4.0.0-beta.21) (2021-07-08)
 
 

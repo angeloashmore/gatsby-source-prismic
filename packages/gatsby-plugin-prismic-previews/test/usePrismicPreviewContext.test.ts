@@ -1,5 +1,5 @@
 import test from 'ava'
-import { renderHook, act } from '@testing-library/react-hooks'
+import { renderHook, act, cleanup } from '@testing-library/react-hooks'
 import browserEnv from 'browser-env'
 
 import { clearAllCookies } from './__testutils__/clearAllCookies'
@@ -17,9 +17,15 @@ import { onClientEntry } from '../src/gatsby-browser'
 
 test.before(() => {
   browserEnv(['window', 'document'])
+  window.requestAnimationFrame = function (callback) {
+    return setTimeout(callback, 0)
+  }
 })
 test.beforeEach(() => {
   clearAllCookies()
+})
+test.afterEach(() => {
+  cleanup()
 })
 
 test.serial('returns context with repository options', async (t) => {
@@ -36,8 +42,6 @@ test.serial('returns context with repository options', async (t) => {
 
   t.true(context.isBootstrapped === false)
   t.deepEqual(context.nodes, {})
-  // TODO: Remove once path-to-nodes map is created (to be used with unpublished previews)
-  t.deepEqual(context.rootNodeMap, {})
   t.deepEqual(context.pluginOptionsStore, {
     [pluginOptions.repositoryName]: pluginOptions,
   })

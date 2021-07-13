@@ -1,4 +1,4 @@
-import * as gatsbyPrismic from 'gatsby-source-prismic'
+import * as prismicT from '@prismicio/types'
 import * as RE from 'fp-ts/ReaderEither'
 import * as A from 'fp-ts/Array'
 import { pipe } from 'fp-ts/function'
@@ -8,9 +8,7 @@ import {
   ProxyDocumentSubtreeEnv,
 } from '../lib/proxyDocumentSubtree'
 
-export const valueRefinement = (
-  value: unknown,
-): value is gatsbyPrismic.PrismicAPISliceField[] =>
+export const valueRefinement = (value: unknown): value is prismicT.SliceZone =>
   Array.isArray(value) &&
   value.every(
     (element) =>
@@ -21,7 +19,7 @@ export const valueRefinement = (
 
 export const proxyValue = (
   path: string[],
-  fieldValue: gatsbyPrismic.PrismicAPISliceField[],
+  fieldValue: prismicT.SliceZone,
 ): RE.ReaderEither<ProxyDocumentSubtreeEnv, Error, unknown> =>
   pipe(
     fieldValue,

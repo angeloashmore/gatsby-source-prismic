@@ -1,4 +1,4 @@
-import * as gatsbyPrismic from 'gatsby-source-prismic'
+import * as prismicT from '@prismicio/types'
 import * as RE from 'fp-ts/ReaderEither'
 import * as A from 'fp-ts/Array'
 import * as R from 'fp-ts/Record'
@@ -10,14 +10,12 @@ import {
 } from '../lib/proxyDocumentSubtree'
 import { mapRecordIndices } from '../lib/mapRecordIndices'
 
-export const valueRefinement = (
-  value: unknown,
-): value is gatsbyPrismic.PrismicAPISliceField =>
+export const valueRefinement = (value: unknown): value is prismicT.Slice =>
   typeof value === 'object' && value !== null && 'slice_type' in value
 
 export const proxyValue = (
   path: string[],
-  fieldValue: gatsbyPrismic.PrismicAPISliceField,
+  fieldValue: prismicT.Slice,
 ): RE.ReaderEither<ProxyDocumentSubtreeEnv, Error, unknown> =>
   pipe(
     RE.ask<ProxyDocumentSubtreeEnv>(),

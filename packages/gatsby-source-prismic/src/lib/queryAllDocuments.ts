@@ -1,9 +1,8 @@
-import * as prismic from 'ts-prismic'
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
+import { pipe } from 'fp-ts/function'
 
 import { Dependencies } from '../types'
-
-import { aggregateQuery } from './aggregateQuery'
 
 /**
  * Queries all documents from a Prismic repository using the environment's
@@ -25,5 +24,8 @@ import { aggregateQuery } from './aggregateQuery'
 export const queryAllDocuments: RTE.ReaderTaskEither<
   Dependencies,
   Error,
-  prismic.Document[]
-> = aggregateQuery(null)
+  prismicT.PrismicDocument[]
+> = pipe(
+  RTE.ask<Dependencies>(),
+  RTE.chain((env) => RTE.fromTask(() => env.prismicClient.getAll())),
+)

@@ -1,4 +1,5 @@
 import * as gqlc from 'graphql-compose'
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import * as R from 'fp-ts/Record'
 import * as A from 'fp-ts/Array'
@@ -7,7 +8,7 @@ import { pipe } from 'fp-ts/function'
 import { mapRecordIndices } from './mapRecordIndices'
 import { toFieldConfig } from './toFieldConfig'
 
-import { Dependencies, PrismicSchemaField } from '../types'
+import { Dependencies } from '../types'
 
 /**
  * Builds a `graphql-compose`-compatible field config map by calling
@@ -23,7 +24,7 @@ import { Dependencies, PrismicSchemaField } from '../types'
  */
 export const buildFieldConfigMap = (
   path: string[],
-  fieldSchemas: Record<string, PrismicSchemaField>,
+  fieldSchemas: Record<string, prismicT.CustomTypeModelField>,
 ): RTE.ReaderTaskEither<
   Dependencies,
   never,

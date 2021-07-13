@@ -1,10 +1,10 @@
 import test from 'ava'
 import * as sinon from 'sinon'
+import * as prismicT from '@prismicio/types'
 
 import { createGatsbyContext } from './__testutils__/createGatsbyContext'
 import { createPluginOptions } from './__testutils__/createPluginOptions'
 
-import { PrismicFieldType } from '../src'
 import { createSchemaCustomization } from '../src/gatsby-node'
 
 test('uses inferred type with link extension', async (t) => {
@@ -14,7 +14,10 @@ test('uses inferred type with link extension', async (t) => {
   pluginOptions.schemas = {
     foo: {
       Main: {
-        integration: { type: PrismicFieldType.IntegrationFields, config: {} },
+        integration: {
+          type: prismicT.CustomTypeModelFieldType.IntegrationFields,
+          config: { label: 'Integration', catalog: 'catalog' },
+        },
       },
     },
   }
@@ -45,7 +48,10 @@ test('creates inferred type using path', async (t) => {
   pluginOptions.schemas = {
     foo: {
       Main: {
-        integration: { type: PrismicFieldType.IntegrationFields, config: {} },
+        integration: {
+          type: prismicT.CustomTypeModelFieldType.IntegrationFields,
+          config: { label: 'Integration', catalog: 'catalog' },
+        },
       },
     },
   }

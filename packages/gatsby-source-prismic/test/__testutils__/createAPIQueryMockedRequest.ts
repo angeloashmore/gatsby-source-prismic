@@ -1,20 +1,10 @@
 import * as msw from 'msw'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
+
+import { isValidAccessToken } from './isValidAccessToken'
+import { resolveURL } from './resolveURL'
 
 import { PluginOptions } from '../../src'
-
-const resolveURL = (apiEndpoint: string, to: string): string => {
-  const resolvedUrl = new URL(to, new URL(apiEndpoint + '/', 'resolve://'))
-
-  if (resolvedUrl.protocol === 'resolve:') {
-    // `from` is a relative URL.
-    const { pathname, search, hash } = resolvedUrl
-
-    return pathname + search + hash
-  }
-
-  return resolvedUrl.toString()
-}
 
 interface APIQueryParams extends prismic.QueryParams {
   accessToken?: string
@@ -24,7 +14,7 @@ interface APIQueryParams extends prismic.QueryParams {
 
 export const createAPIQueryMockedRequest = (
   pluginOptions: PluginOptions,
-  queryResponse: prismic.Response.Query,
+  queryResponse: prismic.Query,
   searchParams: APIQueryParams = {},
 ): msw.RestHandler =>
   msw.rest.get(
@@ -32,11 +22,8 @@ export const createAPIQueryMockedRequest = (
     (req, res, ctx) => {
       const resolvedSearchParams = {
         ref: 'master',
-        lang: pluginOptions.lang,
-        page: 1,
         pageSize: 100,
         ...searchParams,
-        access_token: searchParams.accessToken ?? pluginOptions.accessToken,
       }
 
       const searchParamsMatch = Object.keys(resolvedSearchParams).every(
@@ -45,10 +32,23 @@ export const createAPIQueryMockedRequest = (
           resolvedSearchParams[key as keyof APIQueryParams]?.toString(),
       )
 
-      if (searchParamsMatch) {
+      if (
+        searchParamsMatch &&
+        isValidAccessToken(
+          searchParams.accessToken ?? pluginOptions.accessToken,
+          req,
+        )
+      ) {
         return res(ctx.json(queryResponse))
       } else {
-        return res(ctx.status(401))
+        return res(
+          ctx.status(403),
+          ctx.json({
+            error: '[MOCK ERROR]',
+            oauth_initiate: 'oauth_initiate',
+            oauth_token: 'oauth_token',
+          }),
+        )
       }
     },
   )

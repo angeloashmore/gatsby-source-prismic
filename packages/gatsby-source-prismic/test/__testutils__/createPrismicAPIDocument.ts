@@ -1,11 +1,13 @@
-import * as prismic from 'ts-prismic'
+import * as prismicT from '@prismicio/types'
 import md5 from 'tiny-hashes/md5'
 
 const createId = () => md5(Math.random().toString())
 
-export const createPrismicAPIDocument = <TData = Record<string, unknown>>(
-  fields?: Partial<prismic.Document<TData>>,
-): prismic.Document<TData> => {
+export const createPrismicAPIDocument = <
+  TData extends prismicT.PrismicDocument['data'],
+>(
+  fields?: Partial<prismicT.PrismicDocument<TData>>,
+): prismicT.PrismicDocument<TData> => {
   const id = createId()
   const alternateLanguageId1 = createId()
   const alternateLanguageId2 = createId()
@@ -13,7 +15,6 @@ export const createPrismicAPIDocument = <TData = Record<string, unknown>>(
   return {
     id,
     uid: id,
-    url: 'url',
     type: 'type',
     href: 'href',
     tags: ['tag'],
@@ -35,6 +36,8 @@ export const createPrismicAPIDocument = <TData = Record<string, unknown>>(
     ],
     first_publication_date: 'first_publication_date',
     last_publication_date: 'last_publication_date',
+    url: null,
+    linked_documents: [],
     ...fields,
     data: {
       ...fields?.data,

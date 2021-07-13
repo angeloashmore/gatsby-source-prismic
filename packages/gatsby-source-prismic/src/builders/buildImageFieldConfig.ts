@@ -1,6 +1,7 @@
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import * as R from 'fp-ts/Record'
-import * as A from 'fp-ts/Array'
+import * as ReadonlyA from 'fp-ts/ReadonlyArray'
 import * as S from 'fp-ts/Semigroup'
 import { pipe } from 'fp-ts/function'
 
@@ -11,14 +12,7 @@ import { createTypePath } from '../lib/createTypePath'
 
 import { buildImageBaseFieldConfigMap } from './buildImageBaseFieldConfigMap'
 
-import {
-  Dependencies,
-  FieldConfigCreator,
-  PrismicAPIImageField,
-  PrismicFieldType,
-  PrismicSchemaImageField,
-  PrismicSchemaImageThumbnail,
-} from '../types'
+import { Dependencies, FieldConfigCreator } from '../types'
 
 /**
  * Creates a GraphQL type containing fields for thumbnails of an Image field.
@@ -31,17 +25,18 @@ import {
 // TODO: Move `fields` typename to Dependencies (create in `buildDependencies.ts`).
 const createThumbnailsType = (
   path: string[],
-  schema: PrismicSchemaImageField,
+  // schema: PrismicSchemaImageField,
+  schema: prismicT.CustomTypeModelImageField,
 ): RTE.ReaderTaskEither<Dependencies, never, string> =>
   pipe(
     RTE.ask<Dependencies>(),
     RTE.bind('thumbnails', () => RTE.right(schema.config?.thumbnails ?? [])),
     RTE.bind('fields', (scope) =>
       pipe(
-        R.fromFoldableMap(S.last<PrismicSchemaImageThumbnail>(), A.Foldable)(
-          scope.thumbnails,
-          (thumbnail) => [thumbnail.name, thumbnail],
-        ),
+        R.fromFoldableMap(
+          S.last<prismicT.CustomTypeModelImageThumbnail>(),
+          ReadonlyA.Foldable,
+        )(scope.thumbnails, (thumbnail) => [thumbnail.name, thumbnail]),
         R.map(() => scope.nodeHelpers.createTypeName('ImageThumbnailType')),
         (fields) => RTE.right(fields),
       ),
@@ -71,13 +66,15 @@ const createThumbnailsType = (
  *
  * @returns GraphQL field configuration object.
  */
-export const buildImageFieldConfig: FieldConfigCreator<PrismicSchemaImageField> =
+export const buildImageFieldConfig: FieldConfigCreator<prismicT.CustomTypeModelImageField> =
   (path, schema) =>
     pipe(
       RTE.ask<Dependencies>(),
-      RTE.chainFirst(() => createTypePath(path, PrismicFieldType.Image)),
+      RTE.chainFirst(() =>
+        createTypePath(path, prismicT.CustomTypeModelFieldType.Image),
+      ),
       RTE.bind('thumbnailsTypeName', () =>
-        A.isEmpty(schema.config?.thumbnails ?? [])
+        ReadonlyA.isEmpty(schema.config?.thumbnails ?? [])
           ? RTE.right(undefined)
           : createThumbnailsType(path, schema),
       ),
@@ -90,7 +87,7 @@ export const buildImageFieldConfig: FieldConfigCreator<PrismicSchemaImageField> 
                 ...scope.baseFields,
                 thumbnails: {
                   type: scope.thumbnailsTypeName,
-                  resolve: (source: PrismicAPIImageField) => source,
+                  resolve: (source: prismicT.ImageField) => source,
                 },
               }
             : scope.baseFields,

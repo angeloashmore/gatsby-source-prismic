@@ -1,7 +1,7 @@
-import { HTTPError } from 'ky'
+import * as prismic from '@prismicio/client'
 
 export const userFriendlyError = (error: Error): Error => {
-  if (error instanceof HTTPError) {
+  if (error instanceof prismic.ForbiddenError) {
     return new Error('Unauthorized access')
   } else {
     return error

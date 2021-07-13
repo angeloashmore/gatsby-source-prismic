@@ -2,11 +2,13 @@ import test from 'ava'
 import * as sinon from 'sinon'
 import * as assert from 'assert'
 import * as mswNode from 'msw/node'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
+import * as prismicH from '@prismicio/helpers'
 import * as cookie from 'es-cookie'
 import * as gatsby from 'gatsby'
 import * as React from 'react'
 import * as tlr from '@testing-library/react'
+// import browserEnv from 'browser-env'
 import globalJsdom from 'global-jsdom'
 
 import { clearAllCookies } from './__testutils__/clearAllCookies'
@@ -34,11 +36,15 @@ import { navigateToPreviewResolverURL } from './__testutils__/navigateToPreviewR
 const server = mswNode.setupServer()
 test.before(() => {
   polyfillKy()
+  // browserEnv(['window', 'document'])
   globalJsdom(undefined, {
     url: 'https://example.com',
     pretendToBeVisual: true,
   })
   server.listen({ onUnhandledRequest: 'error' })
+  window.requestAnimationFrame = function (callback) {
+    return setTimeout(callback, 0)
+  }
   console.error = sinon.stub()
 })
 test.beforeEach(() => {
@@ -66,10 +72,6 @@ const createConfig = (): WithPrismicPreviewResolverConfig => ({
 const Page = (props: gatsby.PageProps & WithPrismicPreviewResolverProps) => (
   <div>
     <div data-testid="isPrismicPreview">{String(props.isPrismicPreview)}</div>
-    <div data-testid="prismicPreviewState">{props.prismicPreviewState}</div>
-    <div data-testid="prismicPreviewError">
-      {props.prismicPreviewError?.message}
-    </div>
     <div data-testid="prismicPreviewPath">{props.prismicPreviewPath}</div>
   </div>
 )
@@ -125,7 +127,6 @@ test.serial('not a preview if documentId is not in URL', async (t) => {
   const result = tlr.render(tree)
 
   t.true(result.getByTestId('isPrismicPreview').textContent === 'false')
-  t.true(result.getByTestId('prismicPreviewState').textContent === 'INIT')
   t.true((config.navigate as sinon.SinonStub).notCalled)
 })
 
@@ -145,7 +146,6 @@ test.serial('not a preview if no token is available', async (t) => {
   const result = tlr.render(tree)
 
   t.true(result.getByTestId('isPrismicPreview').textContent === 'false')
-  t.true(result.getByTestId('prismicPreviewState').textContent === 'INIT')
   t.true((config.navigate as sinon.SinonStub).notCalled)
 })
 
@@ -184,7 +184,10 @@ test.serial('redirects to path on valid preview', async (t) => {
 
   t.true(
     (config.navigate as sinon.SinonStub).calledWith(
-      hookConfig[0].linkResolver(doc),
+      prismicH.asLink(
+        prismicH.documentToLinkField(doc),
+        hookConfig[0].linkResolver,
+      ),
     ),
   )
 })
@@ -227,7 +230,10 @@ test.serial(
 
     t.true(
       result.getByTestId('prismicPreviewPath').textContent ===
-        hookConfig[0].linkResolver(doc),
+        prismicH.asLink(
+          prismicH.documentToLinkField(doc),
+          hookConfig[0].linkResolver,
+        ),
     )
     t.true((config.navigate as sinon.SinonStub).notCalled)
   },

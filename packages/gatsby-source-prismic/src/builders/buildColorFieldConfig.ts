@@ -1,9 +1,10 @@
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import { pipe } from 'fp-ts/function'
 
 import { createTypePath } from '../lib/createTypePath'
 
-import { FieldConfigCreator, PrismicFieldType } from '../types'
+import { FieldConfigCreator } from '../types'
 
 /**
  * Builds a GraphQL field configuration object for a Color Custom Type field.
@@ -17,6 +18,6 @@ import { FieldConfigCreator, PrismicFieldType } from '../types'
  */
 export const buildColorFieldConfig: FieldConfigCreator = (path) =>
   pipe(
-    createTypePath(path, PrismicFieldType.Color),
+    createTypePath(path, prismicT.CustomTypeModelFieldType.Color),
     RTE.map(() => 'String'),
   )

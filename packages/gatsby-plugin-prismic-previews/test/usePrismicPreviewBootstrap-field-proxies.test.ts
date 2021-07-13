@@ -3,9 +3,12 @@ import * as mswNode from 'msw/node'
 import * as sinon from 'sinon'
 import * as gatsby from 'gatsby'
 import * as gatsbyPrismic from 'gatsby-source-prismic'
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
+import * as prismicT from '@prismicio/types'
+import * as prismicH from '@prismicio/helpers'
 import * as cookie from 'es-cookie'
-import { renderHook, act } from '@testing-library/react-hooks'
+import * as assert from 'assert'
+import { renderHook, act, cleanup } from '@testing-library/react-hooks'
 import browserEnv from 'browser-env'
 
 import { clearAllCookies } from './__testutils__/clearAllCookies'
@@ -22,12 +25,14 @@ import {
   PluginOptions,
   PrismicAPIDocumentNodeInput,
   PrismicPreviewProvider,
+  PrismicPreviewState,
   PrismicRepositoryConfigs,
   usePrismicPreviewBootstrap,
   usePrismicPreviewContext,
 } from '../src'
 import { onClientEntry } from '../src/gatsby-browser'
 import { IS_PROXY } from '../src/constants'
+import { StructuredTextProxyValue } from '../src/fieldProxies/structuredTextFieldProxy'
 
 const createRepositoryConfigs = (
   pluginOptions: PluginOptions,
@@ -43,10 +48,16 @@ test.before(() => {
   polyfillKy()
   browserEnv(['window', 'document'])
   server.listen({ onUnhandledRequest: 'error' })
+  window.requestAnimationFrame = function (callback) {
+    return setTimeout(callback, 0)
+  }
   globalThis.__PATH_PREFIX__ = 'https://example.com'
 })
 test.beforeEach(() => {
   clearAllCookies()
+})
+test.afterEach(() => {
+  cleanup()
 })
 test.after(() => {
   server.close()
@@ -55,11 +66,11 @@ test.after(() => {
 // Opting out of defining a return type here since this is just a test.
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 const performPreview = async (
-  t: ExecutionContext,
+  _t: ExecutionContext,
   gatsbyContext: gatsby.BrowserPluginArgs,
   pluginOptions: PluginOptions,
   repositoryConfigs: PrismicRepositoryConfigs,
-  queryResponse: prismic.Response.Query,
+  queryResponse: prismic.Query,
   typePathsFilename: string,
   typePaths: Record<string, gatsbyPrismic.PrismicTypePathType>,
 ) => {
@@ -70,7 +81,7 @@ const performPreview = async (
   server.use(createTypePathsMockedRequest(typePathsFilename, typePaths))
 
   await onClientEntry(gatsbyContext, pluginOptions)
-  const { result, waitForValueToChange } = renderHook(
+  const { result, waitFor } = renderHook(
     () => {
       const context = usePrismicPreviewContext()
       const bootstrap = usePrismicPreviewBootstrap(repositoryConfigs)
@@ -80,18 +91,21 @@ const performPreview = async (
     { wrapper: PrismicPreviewProvider },
   )
 
-  t.true(result.current.bootstrap[0].state === 'INIT')
-
   act(() => {
-    const [, bootstrapPreview] = result.current.bootstrap
-    bootstrapPreview()
+    result.current.bootstrap()
   })
 
-  await waitForValueToChange(() => result.current.bootstrap[0].state)
-  t.true(result.current.bootstrap[0].state === 'BOOTSTRAPPING')
-
-  await waitForValueToChange(() => result.current.bootstrap[0].state)
-  t.true(result.current.bootstrap[0].state === 'BOOTSTRAPPED')
+  await waitFor(() =>
+    assert.ok(
+      result.current.context[0].previewState ===
+        PrismicPreviewState.BOOTSTRAPPING,
+    ),
+  )
+  await waitFor(() =>
+    assert.ok(
+      result.current.context[0].previewState === PrismicPreviewState.ACTIVE,
+    ),
+  )
 
   return result
 }
@@ -121,7 +135,13 @@ test.serial('document', async (t) => {
   const node = result.current.context[0].nodes[doc.id]
 
   t.true(node.__typename === 'PrismicPrefixType')
-  t.true(node.url === config[0].linkResolver(doc))
+  t.true(
+    node.url ===
+      prismicH.asLink(
+        prismicH.documentToLinkField(doc),
+        config[0].linkResolver,
+      ),
+  )
 })
 
 test.serial(
@@ -135,7 +155,15 @@ test.serial(
     // below use "structured_text" (with an underscore). The transformer will
     // transformer "-" to "_" by default.
     const doc = createPrismicAPIDocument({
-      'structured-text': [{ type: 'paragraph', text: 'foo' }],
+      data: {
+        'structured-text': [
+          {
+            type: prismicT.RichTextNodeType.paragraph,
+            text: 'foo',
+            spans: [],
+          },
+        ],
+      },
     })
     const queryResponse = createPrismicAPIQueryResponse([doc])
 
@@ -151,17 +179,20 @@ test.serial(
         type: gatsbyPrismic.PrismicSpecialType.Document,
         'type.data': gatsbyPrismic.PrismicSpecialType.DocumentData,
         'type.data.structured_text':
-          gatsbyPrismic.PrismicFieldType.StructuredText,
+          prismicT.CustomTypeModelFieldType.StructuredText,
       },
     )
 
     const node = result.current.context[0].nodes[doc.id]
 
-    t.deepEqual(node.data.structured_text, {
-      html: '<p>foo</p>',
-      text: 'foo',
-      raw: doc.data['structured-text'],
-    })
+    t.deepEqual(
+      node.data.structured_text as unknown as StructuredTextProxyValue,
+      {
+        html: '<p>foo</p>',
+        text: 'foo',
+        raw: doc.data['structured-text'],
+      },
+    )
   },
 )
 
@@ -179,7 +210,15 @@ test.serial(
     // use "structured_text" (with an underscore). The transformer will convert
     // the field name.
     const doc = createPrismicAPIDocument({
-      'structured-text': [{ type: 'paragraph', text: 'foo' }],
+      data: {
+        'structured-text': [
+          {
+            type: prismicT.RichTextNodeType.paragraph,
+            text: 'foo',
+            spans: [],
+          },
+        ],
+      },
     })
     const queryResponse = createPrismicAPIQueryResponse([doc])
 
@@ -195,17 +234,20 @@ test.serial(
         type: gatsbyPrismic.PrismicSpecialType.Document,
         'type.data': gatsbyPrismic.PrismicSpecialType.DocumentData,
         'type.data.structuredCUSTOMtext':
-          gatsbyPrismic.PrismicFieldType.StructuredText,
+          prismicT.CustomTypeModelFieldType.StructuredText,
       },
     )
 
     const node = result.current.context[0].nodes[doc.id]
 
-    t.deepEqual(node.data.structuredCUSTOMtext, {
-      html: '<p>foo</p>',
-      text: 'foo',
-      raw: doc.data['structured-text'],
-    })
+    t.deepEqual(
+      node.data.structuredCUSTOMtext as unknown as StructuredTextProxyValue,
+      {
+        html: '<p>foo</p>',
+        text: 'foo',
+        raw: doc.data['structured-text'],
+      },
+    )
   },
 )
 
@@ -216,23 +258,20 @@ test.serial('alternative languages', async (t) => {
 
   const altLangDoc1 = createPrismicAPIDocument()
   const altLangDoc2 = createPrismicAPIDocument()
-  const doc = {
-    ...createPrismicAPIDocument(),
+  const doc = createPrismicAPIDocument({
     alternate_languages: [
       {
         id: altLangDoc1.id,
-        uid: altLangDoc1.uid,
         type: altLangDoc1.type,
         lang: 'alt-lang-1',
       },
       {
         id: altLangDoc2.id,
-        uid: altLangDoc2.uid,
         type: altLangDoc2.type,
         lang: 'alt-lang-2',
       },
     ],
-  }
+  })
   const queryResponse = createPrismicAPIQueryResponse([
     doc,
     altLangDoc1,
@@ -250,8 +289,8 @@ test.serial('alternative languages', async (t) => {
     {
       type: gatsbyPrismic.PrismicSpecialType.Document,
       'type.data': gatsbyPrismic.PrismicSpecialType.DocumentData,
-      'type.data.doc_link': gatsbyPrismic.PrismicFieldType.Link,
-      'type.data.media_link': gatsbyPrismic.PrismicFieldType.Link,
+      'type.data.doc_link': prismicT.CustomTypeModelFieldType.Link,
+      'type.data.media_link': prismicT.CustomTypeModelFieldType.Link,
     },
   )
 
@@ -294,7 +333,15 @@ test.serial('structured text', async (t) => {
   const config = createRepositoryConfigs(pluginOptions)
 
   const doc = createPrismicAPIDocument({
-    structured_text: [{ type: 'paragraph', text: 'foo' }],
+    data: {
+      structured_text: [
+        {
+          type: prismicT.RichTextNodeType.paragraph,
+          text: 'foo',
+          spans: [],
+        },
+      ],
+    },
   })
   const queryResponse = createPrismicAPIQueryResponse([doc])
 
@@ -310,17 +357,20 @@ test.serial('structured text', async (t) => {
       type: gatsbyPrismic.PrismicSpecialType.Document,
       'type.data': gatsbyPrismic.PrismicSpecialType.DocumentData,
       'type.data.structured_text':
-        gatsbyPrismic.PrismicFieldType.StructuredText,
+        prismicT.CustomTypeModelFieldType.StructuredText,
     },
   )
 
   const node = result.current.context[0].nodes[doc.id]
 
-  t.deepEqual(node.data.structured_text, {
-    html: '<p>foo</p>',
-    text: 'foo',
-    raw: doc.data.structured_text,
-  })
+  t.deepEqual(
+    node.data.structured_text as unknown as StructuredTextProxyValue,
+    {
+      html: '<p>foo</p>',
+      text: 'foo',
+      raw: doc.data.structured_text,
+    },
+  )
 })
 
 test.serial('link', async (t) => {
@@ -330,8 +380,17 @@ test.serial('link', async (t) => {
 
   const linkedDoc = createPrismicAPIDocument()
   const doc = createPrismicAPIDocument({
-    doc_link: { link_type: 'Document', id: linkedDoc.id, uid: linkedDoc.uid },
-    media_link: { link_type: 'Media', url: 'https://example.com/image.jpg' },
+    data: {
+      doc_link: {
+        link_type: prismicT.LinkType.Document,
+        id: linkedDoc.id,
+        uid: linkedDoc.uid,
+      },
+      media_link: {
+        link_type: prismicT.LinkType.Media,
+        url: 'https://example.com/image.jpg',
+      },
+    },
   })
   const queryResponse = createPrismicAPIQueryResponse([doc, linkedDoc])
 
@@ -346,8 +405,8 @@ test.serial('link', async (t) => {
     {
       type: gatsbyPrismic.PrismicSpecialType.Document,
       'type.data': gatsbyPrismic.PrismicSpecialType.DocumentData,
-      'type.data.doc_link': gatsbyPrismic.PrismicFieldType.Link,
-      'type.data.media_link': gatsbyPrismic.PrismicFieldType.Link,
+      'type.data.doc_link': prismicT.CustomTypeModelFieldType.Link,
+      'type.data.media_link': prismicT.CustomTypeModelFieldType.Link,
     },
   )
 
@@ -356,7 +415,10 @@ test.serial('link', async (t) => {
 
   t.deepEqual(node.data.doc_link, {
     ...doc.data.doc_link,
-    url: config[0].linkResolver(linkedDoc),
+    url: prismicH.asLink(
+      prismicH.documentToLinkField(linkedDoc),
+      config[0].linkResolver,
+    ),
     localFile: null,
     raw: doc.data.doc_link,
     // Sorry, this is an implementation detail but we need it pass tests.
@@ -386,22 +448,24 @@ test.serial('image', async (t) => {
   const config = createRepositoryConfigs(pluginOptions)
 
   const doc = createPrismicAPIDocument({
-    image: {
-      dimensions: { width: 400, height: 300 },
-      alt: 'alt',
-      copyright: 'copyright',
-      url: 'https://example.com/image.jpg',
-      Thumb1: {
+    data: {
+      image: {
         dimensions: { width: 400, height: 300 },
         alt: 'alt',
         copyright: 'copyright',
-        url: 'https://example.com/thumb1.jpg',
-      },
-      Thumb2: {
-        dimensions: { width: 400, height: 300 },
-        alt: 'alt',
-        copyright: 'copyright',
-        url: 'https://example.com/thumb2.jpg',
+        url: 'https://example.com/image.jpg',
+        Thumb1: {
+          dimensions: { width: 400, height: 300 },
+          alt: 'alt',
+          copyright: 'copyright',
+          url: 'https://example.com/thumb1.jpg',
+        },
+        Thumb2: {
+          dimensions: { width: 400, height: 300 },
+          alt: 'alt',
+          copyright: 'copyright',
+          url: 'https://example.com/thumb2.jpg',
+        },
       },
     },
   })
@@ -418,7 +482,7 @@ test.serial('image', async (t) => {
     {
       type: gatsbyPrismic.PrismicSpecialType.Document,
       'type.data': gatsbyPrismic.PrismicSpecialType.DocumentData,
-      'type.data.image': gatsbyPrismic.PrismicFieldType.Image,
+      'type.data.image': prismicT.CustomTypeModelFieldType.Image,
     },
   )
 
@@ -505,11 +569,13 @@ test.serial(
       'https://example.com/image.png?rect=0,0,100,200&w=1',
     )
     const doc = createPrismicAPIDocument({
-      image: {
-        dimensions: { width: 400, height: 300 },
-        alt: 'alt',
-        copyright: 'copyright',
-        url: originalUrl.toString(),
+      data: {
+        image: {
+          dimensions: { width: 400, height: 300 },
+          alt: 'alt',
+          copyright: 'copyright',
+          url: originalUrl.toString(),
+        },
       },
     })
     const queryResponse = createPrismicAPIQueryResponse([doc])
@@ -525,10 +591,11 @@ test.serial(
       {
         type: gatsbyPrismic.PrismicSpecialType.Document,
         'type.data': gatsbyPrismic.PrismicSpecialType.DocumentData,
-        'type.data.image': gatsbyPrismic.PrismicFieldType.Image,
+        'type.data.image': prismicT.CustomTypeModelFieldType.Image,
       },
     )
 
+    // @ts-expect-error - The provided type does not match since we change its shape during the proxy process.
     const node = result.current.context[0].nodes[
       doc.id
     ] as PrismicAPIDocumentNodeInput<{
@@ -605,11 +672,13 @@ test.serial('image URL is properly decoded', async (t) => {
     'https://example.com/image@2x with spaces and plus signs &.png',
   )
   const doc = createPrismicAPIDocument({
-    image: {
-      dimensions: { width: 400, height: 300 },
-      alt: 'alt',
-      copyright: 'copyright',
-      url: originalUrl.toString(),
+    data: {
+      image: {
+        dimensions: { width: 400, height: 300 },
+        alt: 'alt',
+        copyright: 'copyright',
+        url: originalUrl.toString(),
+      },
     },
   })
   const queryResponse = createPrismicAPIQueryResponse([doc])
@@ -625,10 +694,11 @@ test.serial('image URL is properly decoded', async (t) => {
     {
       type: gatsbyPrismic.PrismicSpecialType.Document,
       'type.data': gatsbyPrismic.PrismicSpecialType.DocumentData,
-      'type.data.image': gatsbyPrismic.PrismicFieldType.Image,
+      'type.data.image': prismicT.CustomTypeModelFieldType.Image,
     },
   )
 
+  // @ts-expect-error - The provided type does not match since we change its shape during the proxy process.
   const node = result.current.context[0].nodes[
     doc.id
   ] as PrismicAPIDocumentNodeInput<{
@@ -661,10 +731,28 @@ test.serial('group', async (t) => {
   const config = createRepositoryConfigs(pluginOptions)
 
   const doc = createPrismicAPIDocument({
-    group: [
-      { structured_text: [{ type: 'paragraph', text: 'foo' }] },
-      { structured_text: [{ type: 'paragraph', text: 'bar' }] },
-    ],
+    data: {
+      group: [
+        {
+          structured_text: [
+            {
+              type: prismicT.RichTextNodeType.paragraph,
+              text: 'foo',
+              spans: [],
+            },
+          ],
+        },
+        {
+          structured_text: [
+            {
+              type: prismicT.RichTextNodeType.paragraph,
+              text: 'bar',
+              spans: [],
+            },
+          ],
+        },
+      ],
+    },
   })
   const queryResponse = createPrismicAPIQueryResponse([doc])
 
@@ -679,30 +767,36 @@ test.serial('group', async (t) => {
     {
       type: gatsbyPrismic.PrismicSpecialType.Document,
       'type.data': gatsbyPrismic.PrismicSpecialType.DocumentData,
-      'type.data.group': gatsbyPrismic.PrismicFieldType.Group,
+      'type.data.group': prismicT.CustomTypeModelFieldType.Group,
       'type.data.group.structured_text':
-        gatsbyPrismic.PrismicFieldType.StructuredText,
+        prismicT.CustomTypeModelFieldType.StructuredText,
     },
   )
 
   const node = result.current.context[0].nodes[doc.id]
 
-  t.deepEqual(node.data.group, [
-    {
-      structured_text: {
-        html: '<p>foo</p>',
-        text: 'foo',
-        raw: doc.data.group[0].structured_text,
+  t.deepEqual(
+    // @ts-expect-error - The provided type does not match since we change its shape during the proxy process.
+    node.data.group as unknown as prismicT.GroupField<{
+      structured_text: StructuredTextProxyValue
+    }>,
+    [
+      {
+        structured_text: {
+          html: '<p>foo</p>',
+          text: 'foo',
+          raw: doc.data.group[0].structured_text,
+        },
       },
-    },
-    {
-      structured_text: {
-        html: '<p>bar</p>',
-        text: 'bar',
-        raw: doc.data.group[1].structured_text,
+      {
+        structured_text: {
+          html: '<p>bar</p>',
+          text: 'bar',
+          raw: doc.data.group[1].structured_text,
+        },
       },
-    },
-  ])
+    ],
+  )
 })
 
 test.serial('slices', async (t) => {
@@ -711,19 +805,56 @@ test.serial('slices', async (t) => {
   const config = createRepositoryConfigs(pluginOptions)
 
   const doc = createPrismicAPIDocument({
-    slices: [
-      {
-        slice_type: 'foo',
-        primary: { structured_text: [{ type: 'paragraph', text: 'foo' }] },
-      },
-      {
-        slice_type: 'bar',
-        items: [
-          { structured_text: [{ type: 'paragraph', text: 'foo' }] },
-          { structured_text: [{ type: 'paragraph', text: 'bar' }] },
-        ],
-      },
-    ],
+    data: {
+      slices: [
+        {
+          slice_type: 'foo',
+          slice_label: '',
+          primary: {
+            structured_text: [
+              {
+                type: prismicT.RichTextNodeType.paragraph,
+                text: 'foo',
+                spans: [],
+              },
+            ],
+          },
+          items: [],
+        },
+        {
+          slice_type: 'bar',
+          slice_label: '',
+          primary: {},
+          items: [
+            {
+              structured_text: [
+                {
+                  type: prismicT.RichTextNodeType.paragraph,
+                  text: 'foo',
+                  spans: [],
+                },
+              ],
+            },
+            {
+              structured_text: [
+                {
+                  type: prismicT.RichTextNodeType.paragraph,
+                  text: 'bar',
+                  spans: [],
+                },
+              ],
+            },
+          ],
+        },
+      ] as prismicT.SliceZone<
+        | prismicT.Slice<'foo', { structured_text: prismicT.RichTextField }>
+        | prismicT.Slice<
+            'bar',
+            never,
+            { structured_text: prismicT.RichTextField }
+          >
+      >,
+    },
   })
   const queryResponse = createPrismicAPIQueryResponse([doc])
 
@@ -738,26 +869,27 @@ test.serial('slices', async (t) => {
     {
       type: gatsbyPrismic.PrismicSpecialType.Document,
       'type.data': gatsbyPrismic.PrismicSpecialType.DocumentData,
-      'type.data.slices': gatsbyPrismic.PrismicFieldType.Slices,
-      'type.data.slices.foo': gatsbyPrismic.PrismicFieldType.Slice,
+      'type.data.slices': prismicT.CustomTypeModelFieldType.Slices,
+      'type.data.slices.foo': prismicT.CustomTypeModelSliceType.Slice,
       'type.data.slices.foo.primary.structured_text':
-        gatsbyPrismic.PrismicFieldType.StructuredText,
-      'type.data.slices.bar': gatsbyPrismic.PrismicFieldType.Slice,
+        prismicT.CustomTypeModelFieldType.StructuredText,
+      'type.data.slices.bar': prismicT.CustomTypeModelSliceType.Slice,
       'type.data.slices.bar.items.structured_text':
-        gatsbyPrismic.PrismicFieldType.StructuredText,
+        prismicT.CustomTypeModelFieldType.StructuredText,
     },
   )
 
   const node = result.current.context[0].nodes[doc.id]
 
-  // The `id` values will change if the content of the slices changes. It's
+  // The `id` values will change if the content of the Slices changes. It's
   // okay to update this value in the test as needed, but ensure the values
   // are unique between all slices in the array.
-  t.deepEqual(node.data.slices, [
+  t.deepEqual(node.data.slices as unknown, [
     {
       __typename: 'PrismicPrefixTypeDataSlicesFoo',
-      id: '95a74515ba477142af5ef01d6325b04b',
+      id: '5439c14e110fe926437d207f8dd78deb',
       slice_type: 'foo',
+      slice_label: '',
       primary: {
         structured_text: {
           html: '<p>foo</p>',
@@ -769,8 +901,9 @@ test.serial('slices', async (t) => {
     },
     {
       __typename: 'PrismicPrefixTypeDataSlicesBar',
-      id: 'e07c44a80a6a422612456328100ceed9',
+      id: '50cc20327897be970793e6a88922a2fb',
       slice_type: 'bar',
+      slice_label: '',
       primary: {},
       items: [
         {

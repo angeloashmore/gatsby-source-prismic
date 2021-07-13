@@ -1,9 +1,10 @@
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import { pipe } from 'fp-ts/function'
 
 import { createTypePath } from '../lib/createTypePath'
 
-import { FieldConfigCreator, PrismicFieldType } from '../types'
+import { FieldConfigCreator } from '../types'
 
 /**
  * Builds a GraphQL field configuration object for a Date Custom Type field.
@@ -18,7 +19,7 @@ import { FieldConfigCreator, PrismicFieldType } from '../types'
  */
 export const buildDateFieldConfig: FieldConfigCreator = (path) =>
   pipe(
-    createTypePath(path, PrismicFieldType.Date),
+    createTypePath(path, prismicT.CustomTypeModelFieldType.Date),
     RTE.map(() => ({
       type: 'Date',
       extensions: { dateformat: {} },

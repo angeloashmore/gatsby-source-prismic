@@ -1,9 +1,10 @@
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import { pipe } from 'fp-ts/function'
 
 import { createTypePath } from '../lib/createTypePath'
 
-import { Dependencies, FieldConfigCreator, PrismicFieldType } from '../types'
+import { Dependencies, FieldConfigCreator } from '../types'
 
 /**
  * Builds a GraphQL field configuration object for an Embed Custom Type field.
@@ -22,7 +23,9 @@ import { Dependencies, FieldConfigCreator, PrismicFieldType } from '../types'
 export const buildEmbedFieldConfig: FieldConfigCreator = (path) =>
   pipe(
     RTE.ask<Dependencies>(),
-    RTE.chainFirst(() => createTypePath(path, PrismicFieldType.Embed)),
+    RTE.chainFirst(() =>
+      createTypePath(path, prismicT.CustomTypeModelFieldType.Embed),
+    ),
     RTE.map((deps) => ({
       type: deps.nodeHelpers.createTypeName('EmbedType'),
       extensions: { link: {} },

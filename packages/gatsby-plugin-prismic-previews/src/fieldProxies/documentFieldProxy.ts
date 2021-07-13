@@ -1,4 +1,5 @@
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/types'
+import * as prismicH from '@prismicio/helpers'
 import * as RE from 'fp-ts/ReaderEither'
 import * as R from 'fp-ts/Record'
 import { pipe } from 'fp-ts/function'
@@ -12,14 +13,14 @@ import * as alternativeLanguagesFieldProxy from '../fieldProxies/alternativeLang
 
 // TODO: This is a poor type guard. It should use something stricter to ensure
 // the object is a document.
-export const valueRefinement = (value: unknown): value is prismic.Document =>
+export const valueRefinement = (
+  value: unknown,
+): value is prismic.PrismicDocument =>
   typeof value === 'object' && value !== null
 
-// TODO: If a document does not define data fields, we shouldn't process its
-// data field because it doesn't exist.
 export const proxyValue = (
   path: string[],
-  fieldValue: prismic.Document,
+  fieldValue: prismic.PrismicDocument,
 ): RE.ReaderEither<ProxyDocumentSubtreeEnv, Error, unknown> =>
   pipe(
     RE.ask<ProxyDocumentSubtreeEnv>(),
@@ -35,12 +36,12 @@ export const proxyValue = (
       ),
     ),
     RE.bind('url', (env) =>
-      // This doesn't use `prismic-dom`'s `Link.url` function because this
-      // isn't a link. The `Link.url` function includes a check for
-      // link-specific fields which produces unwanted results.
-      // TODO: Once @prismicio/helpers V2 is released, use `documentToLinkField`
-      // along with `asLink`
-      RE.of(env.linkResolver(fieldValue)),
+      RE.of(
+        prismicH.asLink(
+          prismicH.documentToLinkField(fieldValue),
+          env.linkResolver,
+        ),
+      ),
     ),
     RE.bind('alternative_languages', () =>
       alternativeLanguagesFieldProxy.proxyValue(fieldValue.alternate_languages),

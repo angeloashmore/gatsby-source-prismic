@@ -1,13 +1,19 @@
 import * as gatsby from 'gatsby'
 import * as imgixGatsby from '@imgix/gatsby'
 import * as gatsbyPrismic from 'gatsby-source-prismic'
-import * as prismic from 'ts-prismic'
-import * as PrismicDOM from 'prismic-dom'
+import * as prismicT from '@prismicio/types'
+import * as prismicH from '@prismicio/helpers'
 import { SetRequired } from 'type-fest'
 
 export type Mutable<T> = {
   -readonly [P in keyof T]: T[P]
 }
+
+export type IterableElement<TargetIterable> = TargetIterable extends Iterable<
+  infer ElementType
+>
+  ? ElementType
+  : never
 
 export interface PluginOptions extends gatsby.PluginOptions {
   repositoryName: string
@@ -34,14 +40,13 @@ export type WriteTypePathsToFilesystemArgs = {
 
 export type TypePathsStore = Record<string, gatsbyPrismic.PrismicTypePathType>
 
-export interface PrismicAPIDocumentNodeInput<TData = Record<string, unknown>>
-  extends prismic.Document<TData>,
+export interface PrismicAPIDocumentNodeInput<
+  TData = prismicT.PrismicDocument['data'],
+> extends prismicT.PrismicDocument<TData>,
     gatsby.NodeInput {
   prismicId: string
 }
 
-export type LinkResolver = (doc: prismic.Document) => string
-export type HTMLSerializer = typeof PrismicDOM.HTMLSerializer
 export type FieldNameTransformer = (fieldName: string) => string
 
 export type UnknownRecord<K extends PropertyKey = PropertyKey> = Record<
@@ -69,13 +74,13 @@ export type PrismicRepositoryConfig = {
    * Link Resolver for the repository. This should be the same Link Resolver
    * provided to `gatsby-source-prismic`'s plugin options.
    */
-  linkResolver: LinkResolver
+  linkResolver: prismicH.LinkResolverFunction
 
   /**
    * HTML Serializer for the repository. This should be the same HTML Serializer
    * provided to `gatsby-source-prismic`'s plugin options.
    */
-  htmlSerializer?: HTMLSerializer
+  htmlSerializer?: prismicH.HTMLMapSerializer | prismicH.HTMLFunctionSerializer
 
   /**
    * Field name transformer for the repository. This should be the same function

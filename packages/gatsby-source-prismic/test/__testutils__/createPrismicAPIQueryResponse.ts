@@ -1,10 +1,10 @@
-import * as prismic from 'ts-prismic'
+import * as prismic from '@prismicio/client'
 
 import { createPrismicAPIDocument } from './createPrismicAPIDocument'
 
 export const createPrismicAPIQueryResponse = (
   docs = [createPrismicAPIDocument(), createPrismicAPIDocument()],
-): prismic.Response.Query => ({
+): prismic.Query => ({
   page: 1,
   results_per_page: docs.length,
   results_size: docs.length,

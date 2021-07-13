@@ -1,12 +1,13 @@
 import * as gatsby from 'gatsby'
 import * as gatsbyFs from 'gatsby-source-filesystem'
-import * as PrismicDOM from 'prismic-dom'
+import * as prismicH from '@prismicio/helpers'
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import { pipe, identity } from 'fp-ts/function'
 
 import { buildObjectType } from '../lib/buildObjectType'
 
-import { Dependencies, PrismicAPILinkField } from '../types'
+import { Dependencies } from '../types'
 
 /**
  * Builds a GraphQL Type used by Link fields. The resulting type can be created
@@ -27,10 +28,8 @@ export const buildLinkType: RTE.ReaderTaskEither<
         isBroken: 'Boolean',
         url: {
           type: 'String',
-          resolve: (source: PrismicAPILinkField): string | undefined =>
-            source.link_type === 'Document'
-              ? PrismicDOM.Link.url(source, deps.pluginOptions.linkResolver)
-              : source.url,
+          resolve: (source: prismicT.LinkField): string | null =>
+            prismicH.asLink(source, deps.pluginOptions.linkResolver),
         },
         target: 'String',
         size: 'Int',
@@ -42,10 +41,9 @@ export const buildLinkType: RTE.ReaderTaskEither<
         uid: 'String',
         document: {
           type: deps.nodeHelpers.createTypeName('AllDocumentTypes'),
-          resolve: (source: PrismicAPILinkField): string | null =>
-            source.link_type === 'Document' &&
-            source.type &&
-            source.id &&
+          resolve: (source: prismicT.LinkField): string | null =>
+            source.link_type === prismicT.LinkType.Document &&
+            'isBroken' in source &&
             !source.isBroken
               ? deps.nodeHelpers.createNodeId(source.id)
               : null,
@@ -54,9 +52,11 @@ export const buildLinkType: RTE.ReaderTaskEither<
         localFile: {
           type: 'File',
           resolve: async (
-            source: PrismicAPILinkField,
+            source: prismicT.LinkField,
           ): Promise<gatsbyFs.FileSystemNode | null> =>
-            source.url && source.link_type === 'Media'
+            source.link_type === prismicT.LinkType.Media &&
+            'url' in source &&
+            source.url
               ? await deps.createRemoteFileNode({
                   url: source.url,
                   store: deps.store,

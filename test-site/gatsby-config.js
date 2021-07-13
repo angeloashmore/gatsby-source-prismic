@@ -20,6 +20,7 @@ module.exports = {
           without_uid: require('./schemas/without_uid.json'),
           without_data: require('./schemas/without_data.json'),
           not_used: {},
+          test: {},
         },
       },
     },

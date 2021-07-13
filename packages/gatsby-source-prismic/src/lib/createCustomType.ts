@@ -1,5 +1,7 @@
 import * as gatsby from 'gatsby'
 import * as gqlc from 'graphql-compose'
+import * as prismicT from '@prismicio/types'
+import * as prismicH from '@prismicio/helpers'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import * as R from 'fp-ts/Record'
 import * as S from 'fp-ts/Semigroup'
@@ -8,11 +10,8 @@ import { pipe } from 'fp-ts/function'
 
 import {
   Dependencies,
-  PrismicSchema,
-  PrismicSchemaField,
   PrismicAPIDocumentNode,
   PrismicSpecialType,
-  PrismicSchemaTab,
 } from '../types'
 import {
   PREVIEWABLE_NODE_ID_FIELD,
@@ -35,12 +34,12 @@ import { requiredTypeName } from './requiredTypeName'
  * @returns Record of fields for the Custom Type.
  */
 const collectFields = (
-  schema: PrismicSchema,
-): Record<string, PrismicSchemaField> =>
+  schema: prismicT.CustomTypeModel,
+): Record<string, prismicT.CustomTypeModelField> =>
   pipe(
     schema,
     R.collect((_, value) => value),
-    S.concatAll(struct.getAssignSemigroup<PrismicSchemaTab>())({}),
+    S.concatAll(struct.getAssignSemigroup<prismicT.CustomTypeModelTab>())({}),
   )
 
 /**
@@ -55,7 +54,7 @@ const collectFields = (
  */
 const buildDataFieldConfigMap = (
   customTypeName: string,
-  fields: Record<string, PrismicSchemaField>,
+  fields: Record<string, prismicT.CustomTypeModelField>,
 ): RTE.ReaderTaskEither<
   Dependencies,
   never,
@@ -119,7 +118,7 @@ const buildDataFieldConfigMap = (
  */
 export const createCustomType = (
   name: string,
-  schema: PrismicSchema,
+  schema: prismicT.CustomTypeModel,
 ): RTE.ReaderTaskEither<Dependencies, never, gatsby.GatsbyGraphQLObjectType> =>
   pipe(
     RTE.ask<Dependencies>(),
@@ -165,9 +164,10 @@ export const createCustomType = (
           url: {
             type: 'String',
             resolve: (source: PrismicAPIDocumentNode) =>
-              // TODO: Once @prismicio/helpers V2 is released, use
-              // `documentToLinkField` along with `asLink`
-              scope.pluginOptions.linkResolver?.(source),
+              prismicH.asLink(
+                prismicH.documentToLinkField(source),
+                scope.pluginOptions.linkResolver,
+              ),
           },
           [PREVIEWABLE_NODE_ID_FIELD]: {
             type: 'ID!',

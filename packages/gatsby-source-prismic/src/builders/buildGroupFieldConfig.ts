@@ -1,3 +1,4 @@
+import * as prismicT from '@prismicio/types'
 import * as RTE from 'fp-ts/ReaderTaskEither'
 import { pipe } from 'fp-ts/function'
 
@@ -7,12 +8,7 @@ import { listTypeName } from '../lib/listTypeName'
 import { buildSchemaRecordType } from '../lib/buildSchemaRecordType'
 import { createTypePath } from '../lib/createTypePath'
 
-import {
-  Dependencies,
-  FieldConfigCreator,
-  PrismicFieldType,
-  PrismicSchemaGroupField,
-} from '../types'
+import { Dependencies, FieldConfigCreator } from '../types'
 
 /**
  * Builds a GraphQL field configuration object for a Group Custom Type field.
@@ -26,11 +22,13 @@ import {
  *
  * @returns GraphQL field configuration object.
  */
-export const buildGroupFieldConfig: FieldConfigCreator<PrismicSchemaGroupField> =
+export const buildGroupFieldConfig: FieldConfigCreator<prismicT.CustomTypeModelGroupField> =
   (path, schema) =>
     pipe(
       RTE.ask<Dependencies>(),
-      RTE.chainFirst(() => createTypePath(path, PrismicFieldType.Group)),
+      RTE.chainFirst(() =>
+        createTypePath(path, prismicT.CustomTypeModelFieldType.Group),
+      ),
       RTE.chain(() => buildSchemaRecordType(path, schema.config.fields)),
       RTE.chainFirst(createType),
       RTE.map(getTypeName),
